@@ -1,0 +1,56 @@
+# Black-List Everyfile
+*.*
+
+#Except
+!.gitignore
+!*.exe
+
+#- .rc & .ico files
+!*.rc
+!*.ico
+
+#- C/Cpp files
+!*.c
+!*.cpp
+!*.C
+!*.cc
+!*.c++
+!*.cxx
+!*.cxx
+!*.inl
+#- unknown but may be necessary
+!.m
+
+#- header files
+!*.h
+!*.hpp
+
+#- dll/lib files
+!*.dll
+!*.lib
+
+#- txt/TXT files
+!*.txt
+!*.TXT
+
+#- C Archives .a files
+!*.a
+
+#- MarkDown .md files
+!*.md
+
+#- Shader files
+!*.vert
+!*.geom
+!*.frag
+!*.glsl
+
+#- premake file
+!*.lua
+
+#- windows .bat file
+!*.bat
+
+# Output Dirs
+bin/
+bin-int/
