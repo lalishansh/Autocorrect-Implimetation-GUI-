@@ -1,0 +1,19 @@
+# Directories
+**bin/
+**bin-int/
+
+#
+*.html
+*.dox
+*.css
+
+# Files
+*.user
+*imgui.ini
+
+# Visual Studio
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
