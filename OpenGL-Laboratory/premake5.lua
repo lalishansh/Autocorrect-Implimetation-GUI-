@@ -13,8 +13,12 @@ project "OpenGL-Laboratory"
 
     files
 	{
-		-- "vendor/[prj.dir]/**.h",
-		-- "vendor/[prj.dir]/**.cpp",
+		-- "~vendor/[prj.dir]/**.h",
+		-- "~vendor/[prj.dir]/**.cpp",
+		"../~vendor/glm/glm/**.hpp",
+		"../~vendor/glm/glm/**.inl",
+		"../~vendor/stb_image/**.h",
+		"../~vendor/stb_image/**.cpp",
 		"src/**.h",
 		"src/**.cpp"
 	}
@@ -27,12 +31,23 @@ project "OpenGL-Laboratory"
     includedirs
 	{
         -- "../%{IncludeDir.??}",
+        "../%{IncludeDir.spdlog}",
+        "../%{IncludeDir.Glad}",
+        "../%{IncludeDir.Glad}/khr",
+        "../%{IncludeDir.GLFW}",
+        "../%{IncludeDir.ImGui}",
+        "../%{IncludeDir.GLM}",
+        "../%{IncludeDir.stb_image}",
+        "../~vendor",
 		"src"
 	}
 
     links 
 	{ 
 		-- [prj],
+		"Glad",
+		"GLFW",
+		"ImGui",
 		"opengl32.lib"
 	}
 
@@ -42,6 +57,7 @@ project "OpenGL-Laboratory"
         defines
         {
             -- #defines
+			"GLFW_INCLUDE_NONE"
         }
 
     filter "configurations:Debug"

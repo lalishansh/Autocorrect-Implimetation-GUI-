@@ -1,5 +1,5 @@
--- OpenGL-Sandbox
-project "OpenGL-Sandbox"
+-- Autocorrect
+project "Autocorrect"
 	kind "ConsoleApp"
 	language "C++"
 	cppdialect "C++17"
@@ -17,6 +17,11 @@ project "OpenGL-Sandbox"
 	includedirs
 	{
         -- "../%{IncludeDir.??}",
+        "../%{IncludeDir.ImGui}",
+        "../%{IncludeDir.GLM}",
+        "../%{IncludeDir.spdlog}",
+        "../%{IncludeDir.Glad}",
+        "../%{IncludeDir.Glad}/khr",
         "../OpenGL-Laboratory/src",
         "../~vendor"
 	}
