@@ -72,8 +72,20 @@ private:
 	uint8_t m_CursorPosn = 1;
 	uint8_t m_WORDPosnInStream = 1;
 };
-void SandBox::Update() {
-	system("CLS");
+std::ostream &operator<<(std::ostream &os, std::vector<SuggestItem> &in)
+{
+	for (SuggestItem& item: in) {
+		os << item.term << std::endl;
+	}
+	return os;
+}
+const int initialCapacity = 82765;
+const int maxEditDistance = 3;
+const int prefixLength = 4;
+SymSpell symSpell(initialCapacity, maxEditDistance, prefixLength);
+void SandBox::Update ()
+{
+	system ("CLS");
 	std::cout << std::endl << ">> " << m_StringStream <<'_'<< std::endl;
 	std::cout << "====================================" << std::endl;
 	uint8_t wordSize = m_CursorPosn - m_WORDPosnInStream;
@@ -81,19 +93,25 @@ void SandBox::Update() {
 		for (uint8_t i = m_WORDPosnInStream; i < m_CursorPosn + 1; i++) {
 			m_WORD[i - m_WORDPosnInStream] = m_StringStream[i];
 		}
-	}
-	else {
+	} 	else {
 		m_WORD[0] = '\0';
 	}
 	std::cout << std::endl << ">> " << m_WORD << " <<" << (int)m_WORDPosnInStream << " " << (int)m_CursorPosn << std::endl;
 	std::cout << "====================================" << std::endl;
-	if(m_WORD[0]!='\0')
-		std::cout << std::endl << "| " << Test(m_WORD) << " |" << std::endl;
+	if (m_WORD[0]!='\0') {
+		std::cout << std::endl; 
+		auto _in = symSpell.Lookup (m_WORD, Verbosity::All, maxEditDistance, true);
+
+		int i = 0;
+		for (SuggestItem &item: _in) {
+			std::cout << item.term << std::endl;
+			i++;
+			if (i>10)
+				break;
+		}
+	}
 }
-const int initialCapacity = 82765;
-const int maxEditDistance = 2;
-const int prefixLength = 3;
-SymSpell symSpell(initialCapacity, maxEditDistance, prefixLength);
+
 void InitSymSpell() {
 	int start = clock();
 	symSpell.LoadDictionary(".\\frequency_dictionary_en_82_765.txt", 0, 1, XL(' '));
@@ -101,8 +119,9 @@ void InitSymSpell() {
 	float time = (float)((end - start) / (CLOCKS_PER_SEC / 1000));
 	xcout << XL("Library loaded: ") << time << XL(" ms") << endl;
 }
+
 std::string Test(xstring in) {
-	return symSpell.Lookup(in, Verbosity::Closest)[0].term;
+	return symSpell.Lookup(in, Verbosity::All)[0].term;
 }
 
 Backend::Application* Backend::CreateApplication() {

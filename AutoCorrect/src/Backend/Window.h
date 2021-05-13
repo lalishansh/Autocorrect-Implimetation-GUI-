@@ -10,7 +10,7 @@ namespace Backend {
 		unsigned int Width;
 		unsigned int Height;
 
-		WindowProps(const std::string& title = "Hazel Engine",
+		WindowProps(const std::string& title = "Test Window",
 			unsigned int width = 80, unsigned int height = 60)
 			:Title(title), Width(width), Height(height)
 		{}
