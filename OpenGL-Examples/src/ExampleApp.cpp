@@ -7,7 +7,7 @@ class Example : public Application
 {
 public:
 	Example()
-		: Application("OpenGL Examples")
+		: Application("OpenGL Examples", 600, 400)
 	{
 		PushLayer(new ExampleLayer());
 	}

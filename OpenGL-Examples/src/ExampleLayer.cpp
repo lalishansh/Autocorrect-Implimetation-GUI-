@@ -1,106 +1,382 @@
 #include "ExampleLayer.h"
+#include "GLCore/Core/Input.h"
+#include "GLCore/Core/KeyCodes.h"
+#include "GLCore/Core/MouseButtonCodes.h"
+#include "SymSpell/include/SymSpell.h"
+#include <thread>
 
 using namespace GLCore;
 using namespace GLCore::Utils;
 
-ExampleLayer::ExampleLayer()
-	: m_CameraController(16.0f / 9.0f)
+const int g_InitialCapacity = 0;
+const int g_MaxEditDistance = 3;
+const int g_PrefixLength = 4;
+SymSpell g_SymSpell (1, g_MaxEditDistance, g_PrefixLength);
+std::vector<SuggestItem> g_Suggestions;
+std::vector<std::string> g_LoadedDictionaryLocation;
+int g_SuggestionIndex = 0;
+struct
 {
+private:
+	char *data = 0;
+	uint32_t size = 0;
+	uint32_t capacity = 0;
+	uint32_t lineNum = 0;
+	uint32_t columnNum = 0;
+	uint32_t lastWordStartIndex = 0;
+	uint32_t lastWordEndIndex = 0;
+public:
+	char &operator[](uint32_t at)
+	{
+		return data[at];
+	}
 
+	void Resize (uint32_t newCapacity)
+	{
+		if (size > newCapacity) {
+			LOG_WARN ("Cannot Resize, current array size > capacity being resized to");
+			return;
+		}
+		char *newData = new char[newCapacity];
+		if (data) {
+			memcpy (newData, data, size);
+			delete data;
+		} else {
+			newData[0] = '\0';
+		}
+
+		data = newData;
+		capacity = newCapacity;
+	}
+	char *RawData () { return data; }
+	void RecalculateSize ()
+	{
+		lineNum = 0;
+		columnNum = 0;
+		for (uint32_t i = 0; i < capacity; i++) {
+			if (data[i] == '\0') {
+				size = i;
+				break;
+			}
+			if (data[i] == '\n')
+				lineNum++, columnNum = 0;
+			else
+				columnNum++;
+		}
+
+		RecalcLastWord ();
+	}
+	const uint32_t Size () { return size; }
+	const uint32_t LineNum () { return lineNum; }
+	const uint32_t ColumnNum () { return columnNum; }
+	const uint32_t Capacity () { return capacity; }
+	const uint32_t LastWordStartIndex () { return lastWordStartIndex; }
+	const uint32_t LastWordEndIndex () { return lastWordEndIndex; }
+private:
+	void RecalcLastWord ()
+	{
+		{
+			int temp = size - 1;
+			lastWordEndIndex = temp > 0 ? temp : 0;
+		}
+		while (data[lastWordEndIndex] == ' ') {
+			if (lastWordEndIndex != 0) {
+				lastWordEndIndex--;
+			} else
+				break;
+		};
+		lastWordStartIndex = lastWordEndIndex;
+		while (data[lastWordStartIndex] != ' ' && data[lastWordStartIndex] != '\n') {
+			if (lastWordStartIndex != 0) {
+				lastWordStartIndex--;
+			} else
+				break;
+		};
+		if (lastWordStartIndex) lastWordStartIndex++;
+	}
+} g_ResizeableCharBuffer;
+std::string g_LastWordFromCharBuffer;
+bool g_SelectSuggestion = false;
+//std::thread g_WorkerThread;
+
+bool ExampleLayer::s_TextBoxSelected = false;
+ExampleLayer::ExampleLayer()
+{
+	g_ResizeableCharBuffer.Resize (1024);
+
+	//LoadADictionary("default_frequency_dictionary_en_1.txt");
 }
 
 ExampleLayer::~ExampleLayer()
 {
-
 }
 
 void ExampleLayer::OnAttach()
 {
 	EnableGLDebugging();
-
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	m_Shader = Shader::FromGLSLTextFiles(
-		"assets/shaders/test.vert.glsl",
-		"assets/shaders/test.frag.glsl"
-	);
-
-	glGenVertexArrays(1, &m_QuadVA);
-	glBindVertexArray(m_QuadVA);
-
-	float vertices[] = {
-		-0.5f, -0.5f, 0.0f,
-		 0.5f, -0.5f, 0.0f,
-		 0.5f,  0.5f, 0.0f,
-		-0.5f,  0.5f, 0.0f
-	};
-
-	glGenBuffers(1, &m_QuadVB);
-	glBindBuffer(GL_ARRAY_BUFFER, m_QuadVB);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
-
-	uint32_t indices[] = { 0, 1, 2, 2, 3, 0 };
-	glGenBuffers(1, &m_QuadIB);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_QuadIB);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 }
 
 void ExampleLayer::OnDetach()
-{
-	glDeleteVertexArrays(1, &m_QuadVA);
-	glDeleteBuffers(1, &m_QuadVB);
-	glDeleteBuffers(1, &m_QuadIB);
-}
+{}
 
 void ExampleLayer::OnEvent(Event& event)
 {
-	m_CameraController.OnEvent(event);
-
 	EventDispatcher dispatcher(event);
-	dispatcher.Dispatch<MouseButtonPressedEvent>(
-		[&](MouseButtonPressedEvent& e)
+	dispatcher.Dispatch<KeyPressedEvent>(
+		[&](KeyPressedEvent& e)
 		{
-			m_SquareColor = m_SquareAlternateColor;
-			return false;
-		});
-	dispatcher.Dispatch<MouseButtonReleasedEvent>(
-		[&](MouseButtonReleasedEvent& e)
-		{
-			m_SquareColor = m_SquareBaseColor;
+			if (ExampleLayer::s_TextBoxSelected) {
+				if ((Input::IsKeyPressed (HZ_KEY_RIGHT_CONTROL) || Input::IsKeyPressed (HZ_KEY_LEFT_CONTROL)) &&
+					!(Input::IsKeyPressed (HZ_KEY_RIGHT_SHIFT) || Input::IsKeyPressed (HZ_KEY_LEFT_SHIFT)) &&
+					e.GetKeyCode () == HZ_KEY_UP) {
+					g_SuggestionIndex--; // clamp
+					if (g_SuggestionIndex < 0)
+					{
+						g_SuggestionIndex = 0;
+					}
+				}
+				if ((Input::IsKeyPressed (HZ_KEY_RIGHT_CONTROL) || Input::IsKeyPressed (HZ_KEY_LEFT_CONTROL)) &&
+					!(Input::IsKeyPressed (HZ_KEY_RIGHT_SHIFT) || Input::IsKeyPressed (HZ_KEY_LEFT_SHIFT)) &&
+					e.GetKeyCode () == HZ_KEY_DOWN) {
+					g_SuggestionIndex++; 
+					if (g_SuggestionIndex > g_Suggestions.size ()) {
+						g_SuggestionIndex = g_Suggestions.size();
+					}
+				}
+				if (e.GetKeyCode () == HZ_KEY_SPACE)
+					g_LastWordFromCharBuffer = "", g_SuggestionIndex = 0;;
+				if (e.GetKeyCode () == HZ_KEY_BACKSPACE)
+					g_SuggestionIndex = 0;
+				
+				if (e.GetKeyCode () == HZ_KEY_TAB)
+				{
+					g_SelectSuggestion = true;
+				}
+			}
 			return false;
 		});
 }
 
-void ExampleLayer::OnUpdate(Timestep ts)
+std::string ExampleLayer::ExtractLastWordFromTextBuffer()
 {
-	m_CameraController.OnUpdate(ts);
+	uint16_t lastWordEnd = g_ResizeableCharBuffer.LastWordEndIndex ();
+	if (lastWordEnd < g_ResizeableCharBuffer.Size() - 1) {
+		return "";
+	} else {
+		uint16_t lastWordStart = g_ResizeableCharBuffer.LastWordStartIndex ();
+		uint16_t count = lastWordEnd - lastWordStart + 1;
 
-	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	glUseProgram(m_Shader->GetRendererID());
-
-	int location = glGetUniformLocation(m_Shader->GetRendererID(), "u_ViewProjection");
-	glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(m_CameraController.GetCamera().GetViewProjectionMatrix()));
-
-	location = glGetUniformLocation(m_Shader->GetRendererID(), "u_Color");
-	glUniform4fv(location, 1, glm::value_ptr(m_SquareColor));
-
-	glBindVertexArray(m_QuadVA);
-	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+		std::string lastWord (&g_ResizeableCharBuffer[lastWordStart], count);
+		// LOG_WARN ("[{1}, {2} ({3}, {4})] = '{0}'\n", lastWord, lastWordStart, count, m_ResizeableCharBuffer.LineNum (), m_ResizeableCharBuffer.ColumnNum ());
+		return lastWord;
+	}
 }
+void ExampleLayer::OnUpdate (Timestep ts)
+{}
 
 void ExampleLayer::OnImGuiRender()
 {
-	ImGui::Begin("Controls");
-	if (ImGui::ColorEdit4("Square Base Color", glm::value_ptr(m_SquareBaseColor)) || ImGui::ColorEdit4 ("Square Alternate Color", glm::value_ptr (m_SquareAlternateColor)))
-		m_SquareColor = m_UseAlternatecolorForQuad ? m_SquareAlternateColor : m_SquareBaseColor;
-	if(ImGui::Checkbox ("Use Alternate Color For Quad", &m_UseAlternatecolorForQuad))
-		m_SquareColor = m_UseAlternatecolorForQuad ? m_SquareAlternateColor : m_SquareBaseColor;
-	ImGui::End();
+	{// DockSpace
+
+		static bool dockspaceOpen = true;
+		static constexpr bool optFullscreenPersistant = true;
+		bool optFullscreen = optFullscreenPersistant;
+
+		static ImGuiDockNodeFlags dockspaceFlags = ImGuiDockNodeFlags_None;
+
+		// We are using the ImGuiWindowFlags_NoDocking flag to make the parent window not dockable into,
+		// because it would be confusing to have two docking targets within each others.
+		ImGuiWindowFlags windowFlags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking;
+		if (optFullscreen) {
+			ImGuiViewport *viewPort = ImGui::GetMainViewport ();
+			ImGui::SetNextWindowPos (viewPort->Pos);
+			ImGui::SetNextWindowSize (viewPort->Size);
+			ImGui::SetNextWindowViewport (viewPort->ID);
+			ImGui::PushStyleVar (ImGuiStyleVar_WindowRounding, 0.0f);
+			ImGui::PushStyleVar (ImGuiStyleVar_WindowBorderSize, 0.0f);
+
+			windowFlags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+		}
+
+		// when using ImGuiDockNodeFlags_PassthruCentralNode, DockSpace() will render our background and handle the pass-thru hole, so we ask Begin() to not render background.
+		if (dockspaceFlags & ImGuiDockNodeFlags_PassthruCentralNode)
+			windowFlags |= ImGuiWindowFlags_NoBackground;
+
+		// Important: note that we proceed even if Begin() return false (i.e window is collapsed).
+		// This is because we want to keep our DockSpace() active. If a DockSpace is inactive,
+		// all active windows docked into it will lose their parent and become undocked.
+		// any change of dockspce/settings would lead towindows being stuck in limbo and never being visible.
+		ImGui::PushStyleVar (ImGuiStyleVar_WindowPadding, ImVec2 (0.0f, 0.0f));
+		ImGui::Begin ("Main DockSpace", &dockspaceOpen, windowFlags);
+		ImGui::PopStyleVar ();
+
+		if (optFullscreen)
+			ImGui::PopStyleVar (2);
+
+		// DockSpace
+		ImGuiIO &io = ImGui::GetIO ();
+		ImGuiStyle &style = ImGui::GetStyle ();
+		float defaultMinWinSize = style.WindowMinSize.x;
+		style.WindowMinSize.x = 280;
+
+		if (io.ConfigFlags & ImGuiConfigFlags_DockingEnable) {
+			ImGuiID dockspaceID = ImGui::GetID ("MyDockSpace");
+			ImGui::DockSpace (dockspaceID, ImVec2 (0.0f, 0.0f), dockspaceFlags);
+		}
+
+		style.WindowMinSize.x = defaultMinWinSize;
+
+		// DockSpace's MenuBar
+		if (ImGui::BeginMenuBar ()) {
+			if (ImGui::BeginMenu ("Main")) {
+				// Disabling fullscreen would allow the window to be moved to the front of other windows, 
+				// which we can't undo at the moment without finer window depth/z control.
+				//ImGui::MenuItem("Fullscreen", NULL, &opt_fullscreen_persistant);
+				if (ImGui::MenuItem ("Exit")) 
+					Application::Get ().ApplicationClose ();
+				
+				
+				ImGui::EndMenu ();
+			}
+			MenuBarItems ();
+			ImGui::EndMenuBar ();
+		}
+
+		// Here goes Stuff that will be put inside DockSpace
+		ImGuiRenderDockables ();
+
+		ImGui::End ();
+	}
+
+}
+void ExampleLayer::MenuBarItems ()
+{
+	if (ImGui::BeginMenu ("File")) {
+	
+		if (ImGui::MenuItem ("Load A Dictionary"))
+			LoadADictionary ();
+	
+		ImGui::EndMenu ();
+	}
+}
+void ExampleLayer::ImGuiRenderDockables ()
+{
+	ImGui::Begin ("Text::Area");
+	// ImGui::ShowDemoWindow ();
+	ExampleLayer::s_TextBoxSelected = false;
+	ImVec2 DrawingTextHere = ImGui::GetCursorPos ();
+	if (ImGui::InputTextMultiline ("Text_Box", g_ResizeableCharBuffer.RawData (), g_ResizeableCharBuffer.Capacity (), ImVec2 (0, 0), ImGuiInputTextFlags_CallbackAlways,
+			[](ImGuiInputTextCallbackData *data) -> int
+			{
+				if (data->EventFlag == ImGuiInputTextFlags_CallbackAlways)
+					ExampleLayer::s_TextBoxSelected = true;
+				if (g_SelectSuggestion)
+				{
+					if (g_SuggestionIndex > 0) {
+						int index = g_ResizeableCharBuffer.LastWordStartIndex ();
+						for (char charec : g_Suggestions[g_SuggestionIndex - 1].term) {
+							g_ResizeableCharBuffer[index] = charec;
+							data->Buf[index] = charec;
+							index++;
+						}
+						g_ResizeableCharBuffer[index] = '\0';
+						data->Buf[index] = '\0';
+						g_ResizeableCharBuffer.RecalculateSize ();
+						data->BufTextLen = g_ResizeableCharBuffer.Size ();
+						data->CursorPos = data->BufTextLen;
+						data->BufDirty = true;
+						g_LastWordFromCharBuffer = "";
+						g_SuggestionIndex = 0;
+					}
+					g_SelectSuggestion = false;
+				}
+				return 0;
+			}, NULL)) 
+	{
+		g_ResizeableCharBuffer.RecalculateSize ();
+		//// currently doesn't support buffer resize
+		//if (g_ResizeableCharBuffer.Size () > g_ResizeableCharBuffer.Capacity () - 5)
+		//{
+		//	g_ResizeableCharBuffer.Resize (g_ResizeableCharBuffer.Capacity () + 5);
+		//}
+		g_LastWordFromCharBuffer = ExtractLastWordFromTextBuffer ();
+
+		// lookup word
+		if (g_LastWordFromCharBuffer.size () > 2)
+		{
+			LookupWordInDictionary (g_LastWordFromCharBuffer);
+		}
+	}
+	{
+		bool show = (g_LastWordFromCharBuffer.size () > 2) && g_Suggestions.size () > 0;
+		if (g_Suggestions.size () > 0) {
+			if (g_Suggestions[0].term == g_LastWordFromCharBuffer) {
+				show = false;
+			}
+		}
+		if (show && (s_TextBoxSelected || g_SelectSuggestion)) {
+			ImGui::SetNextWindowPos (ImVec2 (12*g_ResizeableCharBuffer.ColumnNum () + ImGui::GetWindowPos ().x + DrawingTextHere.x, 12*(g_ResizeableCharBuffer.LineNum ()+1) + ImGui::GetWindowPos ().y + DrawingTextHere.y));
+			ImGui::Begin ("#Suggestions", &show, ImGuiWindowFlags_NoCollapse);
+			int i = 0;
+			for (SuggestItem &item: g_Suggestions) {
+				bool SelectIt = (i == (g_SuggestionIndex - 1));
+				ImVec2 startDrawPosn = ImGui::GetCursorScreenPos ();
+				startDrawPosn.x -= ImGui::GetCursorPos().x;
+				ImGui::MenuItem (item.term.c_str (), nullptr, &SelectIt);
+				ImVec2 endDrawPosn = ImGui::GetCursorScreenPos ();
+				endDrawPosn.x += ImGui::GetWindowSize ().x - ImGui::GetCursorPos ().x;
+				glm::vec2 mouse_cursor = *(glm::vec2 *)(&Input::GetMousePosition ()) + *(glm::vec2 *)(&ImGui::GetMainViewport ()->Pos);
+				if ((startDrawPosn.y < mouse_cursor.y && mouse_cursor.y < endDrawPosn.y) && (startDrawPosn.x < mouse_cursor.x && mouse_cursor.x < endDrawPosn.x) && Input::IsMouseButtonPressed (HZ_MOUSE_BUTTON_1)) {
+					g_SuggestionIndex = i + 1;
+					int index = g_ResizeableCharBuffer.LastWordStartIndex ();
+					for (char charec : g_Suggestions[g_SuggestionIndex - 1].term) {
+						g_ResizeableCharBuffer[index] = charec;
+						index++;
+					}
+					g_ResizeableCharBuffer[index] = '\0';
+					g_ResizeableCharBuffer.RecalculateSize ();
+					g_LastWordFromCharBuffer = "";
+					g_SuggestionIndex = 0;
+				}
+				i++;
+				if (i>10)
+					break;
+			}
+			ImGui::End ();
+		}
+	}
+	ImGui::End ();
+}
+void ExampleLayer::LoadADictionary ()
+{
+	std::string filePath = GLCore::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0");
+	if (!filePath.empty ()) {
+		g_LoadedDictionaryLocation.push_back (filePath);
+		int start = clock ();
+		g_SymSpell.LoadDictionary (filePath, 0, 1, XL (' '));
+		int end = clock ();
+		float time = (float)((end - start) / (CLOCKS_PER_SEC / 1000));
+		LOG_INFO ("Library Loaded in : {0}", time);
+	}
+}
+void ExampleLayer::LoadADictionary (std::string filePath)
+{
+	if (!filePath.empty ()) {
+		g_LoadedDictionaryLocation.push_back (filePath);
+		int start = clock ();
+		g_SymSpell.LoadDictionary (filePath, 0, 1, XL (' '));
+		int end = clock ();
+		float time = (float)((end - start) / (CLOCKS_PER_SEC / 1000));
+		LOG_INFO ("Library Loaded in : {0}", time);
+	}
+}
+void ExampleLayer::LookupWordInDictionary (std::string &word)
+{
+	if (!g_LoadedDictionaryLocation.empty()) {
+		//int start = clock ();
+		g_Suggestions = g_SymSpell.Lookup (word, Verbosity::All, g_MaxEditDistance, true);
+		//int end = clock ();
+		//float time = (float)((end - start) / (CLOCKS_PER_SEC / 1000));
+		//LOG_INFO ("lookup took : {0}", time);
+	}
 }

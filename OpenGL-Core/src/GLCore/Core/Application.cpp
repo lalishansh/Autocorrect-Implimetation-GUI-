@@ -67,6 +67,7 @@ namespace GLCore {
 			for (Layer* layer : m_LayerStack)
 				layer->OnUpdate(timestep);
 
+			
 			m_ImGuiLayer->Begin();
 			for (Layer* layer : m_LayerStack)
 				layer->OnImGuiRender();
@@ -78,8 +79,13 @@ namespace GLCore {
 
 	bool Application::OnWindowClose(WindowCloseEvent& e)
 	{
+		return ApplicationClose ();
+
+	}
+
+	bool Application::ApplicationClose ()
+	{
 		m_Running = false;
 		return true;
 	}
-
 }

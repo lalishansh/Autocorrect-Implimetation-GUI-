@@ -29,8 +29,10 @@ namespace GLCore {
 		inline Window& GetWindow() { return *m_Window; }
 
 		inline static Application& Get() { return *s_Instance; }
+		bool ApplicationClose ();
 	private:
 		bool OnWindowClose(WindowCloseEvent& e);
+
 	private:
 		std::unique_ptr<Window> m_Window;
 		ImGuiLayer* m_ImGuiLayer;

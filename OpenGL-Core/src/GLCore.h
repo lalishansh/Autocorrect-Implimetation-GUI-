@@ -9,3 +9,4 @@
 #include <imgui.h>
 
 #include "GLCore/Core/Application.h"
+#include "GLCore/Core/Utils/PlatformUtils.h"
