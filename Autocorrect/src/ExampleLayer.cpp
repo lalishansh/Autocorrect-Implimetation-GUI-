@@ -63,6 +63,7 @@ public:
 				lineNum++, columnNum = 0;
 			else
 				columnNum++;
+			LOG_INFO ("cursor In Buff: {0}, {1}; {2} ", lineNum, columnNum, size);
 		}
 
 		RecalcLastWord ();
@@ -280,8 +281,10 @@ void ExampleLayer::ImGuiRenderDockables ()
 	if (ImGui::InputTextMultiline ("Text_Box", g_ResizeableCharBuffer.RawData (), g_ResizeableCharBuffer.Capacity (), ImGui::GetContentRegionAvail (), ImGuiInputTextFlags_CallbackAlways,
 			[](ImGuiInputTextCallbackData *data) -> int
 			{
-				if (data->EventFlag == ImGuiInputTextFlags_CallbackAlways)
+				if (data->EventFlag == ImGuiInputTextFlags_CallbackAlways) {
+					LOG_TRACE ("cursor_pos {0}", data->CursorPos);
 					ExampleLayer::s_TextBoxSelected = true;
+				}
 				if (g_SelectSuggestion)
 				{
 					if (g_SuggestionIndex > 0) {
