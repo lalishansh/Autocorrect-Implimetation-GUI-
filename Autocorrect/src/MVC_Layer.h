@@ -3,11 +3,11 @@
 #include <GLCore.h>
 #include <GLCoreUtils.h>
 
-class ExampleLayer : public GLCore::Layer
+class MVC_Layer : public GLCore::Layer
 {
 public:
-	ExampleLayer();
-	virtual ~ExampleLayer();
+	MVC_Layer();
+	virtual ~MVC_Layer();
 
 	virtual void OnAttach() override;
 	virtual void OnDetach() override;
