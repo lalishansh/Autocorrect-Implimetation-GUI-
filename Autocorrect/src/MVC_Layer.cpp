@@ -267,7 +267,7 @@ void MVC_Layer::MenuBarItems ()
 }
 void MVC_Layer::ImGuiRenderDockables ()
 {
-	// ImGui::ShowDemoWindow();
+	ImGui::ShowDemoWindow();
 
 	ImGui::SetNextWindowDockID (s_DockspaceID);
 	ImGui::Begin ("Text::Area", NULL);

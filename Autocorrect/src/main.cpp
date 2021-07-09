@@ -1,5 +1,6 @@
 #include "GLCore.h"
-#include "MVC_Layer.h"
+#include "new_MVC_Layer.h"
+//#include "MVC_Layer.h"
 
 using namespace GLCore;
 
@@ -7,10 +8,11 @@ class MainApp : public Application
 {
 public:
 	MainApp()
-		: Application("OpenGL Examples", 600, 400)
+		: Application("Symspell", 600, 400)
 	{
 		// Using Model-View-Controller Design_Pattern
-		PushLayer(new MVC_Layer());
+		//PushLayer (new MVC_Layer ());
+		PushLayer (new new_MVC_Layer());
 	}
 };
 
