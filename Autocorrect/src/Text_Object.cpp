@@ -2,6 +2,7 @@
 #include <fstream>
 #include <istream>
 #include <imgui/imgui.h>
+#include <imgui/imgui_internal.h>
 
 
 Text_Object *Text_Object::s_FocusedTextObject = nullptr;
@@ -41,21 +42,49 @@ void Text_Object::ImGuiTextRender ()
 {
 	if (ImGui::IsWindowFocused ())
 		s_FocusedTextObject = this;
-	ImVec2 draw_region = ImGui::GetContentRegionAvail ();
-	ImGui::InputTextMultiline ("TextBox", m_CharecBuffer, m_Buffer_Capacity, draw_region, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_CallbackCompletion, Text_Object::text_input_callback, nullptr);
-}
 
+	ImGui::InputTextMultiline ("TextBox", m_CharecBuffer, m_Buffer_Capacity, ImVec2(-1,-1), ImGuiInputTextFlags_CallbackAlways | ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_CallbackCompletion, Text_Object::text_input_callback, this);
+	
+	ImVec2 suggestionsDrawPosn = ImGui::GetCurrentContext ()->PlatformImeLastPos;
+	suggestionsDrawPosn.x += 15;
+	ImGui::SetNextWindowPos (suggestionsDrawPosn);
+	ImGui::Begin ("Suggestions", NULL, ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize);
+	ImGui::Button ("DUMMY");
+	ImGui::End ();
+}
+const uint8_t min_word_width = 3;
 int Text_Object::text_input_callback (ImGuiInputTextCallbackData *data)
 {
-	if (data->EventFlag == ImGuiInputTextFlags_CallbackCompletion) {
-		data->InsertChars (data->CursorPos, "    ");
-	}
-	if (data->EventFlag == ImGuiInputTextFlags_CallbackEdit) {
-		*(uint32_t *)((void *)&s_FocusedTextObject->m_Buffer_Capacity) = data->BufTextLen + 1;
-	}
-	if (data->EventFlag == ImGuiInputTextFlags_CallbackResize) {
-		s_FocusedTextObject->ResizeBuffer (data->BufSize);
-		data->Buf = s_FocusedTextObject->m_CharecBuffer;
+	s_FocusedTextObject = (Text_Object*)data->UserData;
+	switch (data->EventFlag) {
+		case ImGuiInputTextFlags_CallbackCompletion:
+			data->InsertChars (data->CursorPos, "    ");
+			break;
+		case ImGuiInputTextFlags_CallbackEdit:
+			*(uint32_t *)((void *)&s_FocusedTextObject->m_Buffer_Size) = data->BufTextLen + 1;
+			break;
+		case ImGuiInputTextFlags_CallbackResize:
+			s_FocusedTextObject->ResizeBuffer (data->BufSize);
+			data->Buf = s_FocusedTextObject->m_CharecBuffer;
+			break;
+		default: // calback_always
+			uint32_t cursor_posn = data->CursorPos;
+			if (data->Buf[cursor_posn] != ' ' && data->Buf[cursor_posn] != '\0' && data->Buf[cursor_posn] != '\n') {
+				uint8_t left = 0;
+				uint8_t right = 0;
+				while (data->Buf[cursor_posn - left] != ' ' && data->Buf[cursor_posn - left] != '\n') {
+					left++;
+					if ((cursor_posn - left) == 0) { left++; break; }
+				}
+				while (data->Buf[cursor_posn + right] != ' ' && data->Buf[cursor_posn + right] != '\0' && data->Buf[cursor_posn + right] != '\n')
+					right++;
+				
+				uint32_t size = (left - 1) + right;
+				std::string_view candidate_word (&data->Buf[cursor_posn - left + 1], size);
+				if (s_FocusedTextObject->m_TargetWord != candidate_word && size >= min_word_width)
+					s_FocusedTextObject->m_TargetWord = candidate_word, s_FocusedTextObject->m_ReStartLookup = true;
+				// std::cout << "\"" << s_FocusedTextObject->m_TargetWord << "\"  ";
+			}
 	}
 	return 0;
 }

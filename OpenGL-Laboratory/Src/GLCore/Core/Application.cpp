@@ -13,7 +13,7 @@ namespace GLCore {
 
 	Application* Application::s_Instance = nullptr;
 
-	Application::Application(const std::string& name, uint32_t width, uint32_t height)
+	Application::Application(const std::string& name, uint32_t width, uint32_t height, float opacity)
 	{
 		if (!s_Instance)
 		{
@@ -24,10 +24,8 @@ namespace GLCore {
 		GLCORE_ASSERT(!s_Instance, "Application already exists!");
 		s_Instance = this;
 
-		m_Window = std::unique_ptr<Window>(Window::Create({ name, width, height }));
+		m_Window = std::unique_ptr<Window>(Window::Create({ name, width, height, opacity }));
 		m_Window->SetEventCallback(BIND_EVENT_FN(OnEvent));
-
-		// Renderer::Init();
 
 		m_ImGuiLayer = new ImGuiLayer();
 		PushOverlay(m_ImGuiLayer);

@@ -16,7 +16,7 @@ namespace GLCore {
 	class Application
 	{
 	public:
-		Application(const std::string& name = "OpenGL Sandbox", uint32_t width = 1280, uint32_t height = 720);
+		Application(const std::string& name = "OpenGL Sandbox", uint32_t width = 1280, uint32_t height = 720, float opacity = 1.0f);
 		virtual ~Application() = default;
 
 		void Run();
@@ -40,6 +40,7 @@ namespace GLCore {
 		float m_LastFrameTime = 0.0f;
 	private:
 		static Application* s_Instance;
+		friend ImGuiLayer;
 	};
 
 }

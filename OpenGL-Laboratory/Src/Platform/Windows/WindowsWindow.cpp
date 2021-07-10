@@ -37,6 +37,7 @@ namespace GLCore {
 		m_Data.Title = props.Title;
 		m_Data.Width = props.Width;
 		m_Data.Height = props.Height;
+		m_Data.Opacity = props.Opacity;
 
 		if (!s_GLFWInitialized)
 		{
@@ -47,6 +48,7 @@ namespace GLCore {
 		}
 
 		m_Window = glfwCreateWindow((int)props.Width, (int)props.Height, m_Data.Title.c_str(), nullptr, nullptr);
+		glfwSetWindowOpacity (m_Window, m_Data.Opacity);
 
 		glfwMakeContextCurrent(m_Window);
 		int status = gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
@@ -177,4 +179,11 @@ namespace GLCore {
 		return m_Data.VSync;
 	}
 
+	void WindowsWindow::SetOpacity(float opacity)
+	{
+		if (opacity > 0.0f && opacity <= 1.0f) {
+			m_Data.Opacity = opacity;
+			glfwSetWindowOpacity (m_Window, m_Data.Opacity);
+		}
+	}
 }

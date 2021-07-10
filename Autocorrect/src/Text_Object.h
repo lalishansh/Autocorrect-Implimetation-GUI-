@@ -4,6 +4,7 @@
 #include "SymSpell/include/SymSpell.h"
 #include <future>
 #include <optional>
+#include "Settings_editor_methods.h"
 
 class ImGuiInputTextCallbackData;
 class Text_Object
@@ -20,7 +21,7 @@ public:
 
 		// name of file
 		uint32_t i = 0;
-		while (m_FilePath[m_FilePath.size () - i - 1] != '\\')
+		while (m_FilePath[m_FilePath.size () - i - 1] != '\\' && m_FilePath[m_FilePath.size () - i - 1] != '/')
 			i++;
 		m_FileName = &m_FilePath[m_FilePath.size () - i];
 	}
@@ -53,27 +54,29 @@ private:
 	// Text-Box related
 	bool m_Focused = false; // use focus to handle ImGui call-back
 	bool m_ResetFocus = false;
-	bool m_CancelLookup = false;
-
-	uint32_t m_CursorPosnX = 0; // set via call-back
-	uint32_t m_CursorPosnY = 0; // set via call-back
+	bool m_CancelLookup = false; // to be passed to lookup(modified) as pointer so we can cancel lookup
+	bool m_ReStartLookup = false;
 
 	// Buffer
 	const uint32_t m_Buffer_Capacity = 0; // will only be modified when resizing
 	const uint32_t m_Buffer_Size = 0; // update only through call-back
 	char *m_CharecBuffer = nullptr;
 
-	std::string m_TargetWord = std::string();
+	std::string_view m_TargetWord = std::string_view(" ", 1); // directly extracted from call-back
 
 	// SymSpell
-	static const int s_MaxEditDistance = 3, s_PrefixLength = 4;
-	SymSpell m_Symspell = SymSpell (1, s_MaxEditDistance, s_PrefixLength);
+	SymSpell *m_Symspell = nullptr;
+	std::vector<std::string> *m_LoadedDictionaries = nullptr;
+	
 	//// results
-	std::vector<SuggestItem> *m_SuggestionsRef; // will be used for output
+	std::vector<SuggestItem> *m_SuggestionsRef = nullptr; // will be used for output
 	std::future<std::vector<SuggestItem>> m_Suggestions; // will store results obtained
 	
-	std::vector<std::string> m_LoadedDictionaries;
 	std::string m_FilePath;
 public:
 	const char* m_FileName;
+
+private:
+	friend class new_MVC_Layer;
+	friend bool ChangeUnifiedDictionaryState (const bool, new_MVC_Layer &);
 };

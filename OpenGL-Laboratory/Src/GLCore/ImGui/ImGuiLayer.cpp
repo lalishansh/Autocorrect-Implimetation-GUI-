@@ -12,7 +12,6 @@
 
 namespace GLCore
 {
-
 	ImGuiLayer::ImGuiLayer ()
 		: Layer ("ImGuiLayer")
 	{}
@@ -58,6 +57,8 @@ namespace GLCore
 		ImGui_ImplOpenGL3_NewFrame ();
 		ImGui_ImplGlfw_NewFrame ();
 		ImGui::NewFrame ();
+
+		ResetUniqueNameCount ();
 	}
 
 	void ImGuiLayer::End ()
@@ -78,16 +79,43 @@ namespace GLCore
 		}
 	}
 
-	void ImGuiLayer::OnEvent (Event &event)
+	const char *ImGuiLayer::UniqueName (const std::string &name)
 	{
-		EventDispatcher dispatcher (event);
-		dispatcher.Dispatch<MouseButtonPressedEvent> (GLCORE_BIND_EVENT_FN (ImGuiLayer::OnMouseButtonPressed));
+		return UniqueName (name.c_str ());
+	}
+	const char *ImGuiLayer::UniqueName (const char *name)
+	{
+		auto &map = Application::Get ().m_ImGuiLayer->s_UniqueNameMap;
+
+		if (map.find (name) == map.end ()) {// Create Entry
+			std::vector<std::string> _names = { std::string (name) };
+			map.try_emplace (name, std::make_pair (0, std::move (_names)));
+		}
+
+		// check vector size, if small then insert entry
+		std::pair<uint16_t, std::vector<std::string>> &entry = map.at (name);
+		{
+			for (uint16_t i = entry.second.size (); i < entry.first + 1; i++) {
+				if (entry.second.size () == 1) // i.e. only 1 entry done till and that is of "name"
+				{
+					entry.second.clear ();
+					entry.second.push_back (std::string (name) + "#" + std::to_string (1));
+					entry.second.push_back (std::string (name) + "#" + std::to_string (2));
+					i = 2;
+					continue;
+				}
+				entry.second.push_back (std::string (name) + "#" + std::to_string (i + 1));
+			}
+		}
+		entry.first++;
+		return entry.second[entry.first - 1].c_str ();
 	}
 
-	bool ImGuiLayer::OnMouseButtonPressed (MouseButtonPressedEvent &e)
+	void ImGuiLayer::ResetUniqueNameCount ()
 	{
-		ImGuiIO io = ImGui::GetIO ();
-		return io.WantCaptureMouse;
+		auto &map = Application::Get ().m_ImGuiLayer->s_UniqueNameMap;
+		for (auto &entry : map) {
+			entry.second.first = 0;
+		}
 	}
-
 }

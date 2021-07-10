@@ -12,11 +12,13 @@ namespace GLCore {
 		std::string Title;
 		uint32_t Width;
 		uint32_t Height;
+		float Opacity;
 
 		WindowProps(const std::string& title = "OpenGL Sandbox",
 			        uint32_t width = 1280,
-			        uint32_t height = 720)
-			: Title(title), Width(width), Height(height)
+			        uint32_t height = 720, 
+					float opacity = 1.0f)
+			: Title(title), Width(width), Height(height), Opacity(opacity)
 		{
 		}
 	};
@@ -38,6 +40,8 @@ namespace GLCore {
 		virtual void SetEventCallback(const EventCallbackFn& callback) = 0;
 		virtual void SetVSync(bool enabled) = 0;
 		virtual bool IsVSync() const = 0;
+
+		virtual void SetOpacity(float opacity) = 0;
 
 		virtual void* GetNativeWindow() const = 0;
 

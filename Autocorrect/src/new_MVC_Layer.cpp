@@ -11,6 +11,10 @@ using namespace GLCore::Utils;
 
 const char *new_MVC_Layer::s_AppDataLocation = "C:\\Autocorrect_Text_Editor_Cache\\cache.txt";
 
+bool new_MVC_Layer::s_Settings_changed = false;
+new_MVC_Layer::_Settings new_MVC_Layer::s_Settings_Global = {true};
+new_MVC_Layer::_Settings new_MVC_Layer::s_Settings_temp = {true};
+
 void new_MVC_Layer::OnAttach()
 {}
 
@@ -19,6 +23,7 @@ void new_MVC_Layer::OnDetach()
 
 void new_MVC_Layer::OnEvent(Event& event)
 {}
+
 
 void new_MVC_Layer::OnUpdate (Timestep ts)
 {}
@@ -81,6 +86,8 @@ void new_MVC_Layer::OnImGuiRender()
 				// Disabling fullscreen would allow the window to be moved to the front of other windows, 
 				// which we can't undo at the moment without finer window depth/z control.
 				//ImGui::MenuItem("Fullscreen", NULL, &opt_fullscreen_persistant);
+				if (ImGui::MenuItem ("Style Editor")) 
+					m_ShowAppSettingsEditor = true, Text_Object::s_FocusedTextObject = nullptr;
 				if (ImGui::MenuItem ("Exit")) 
 					Application::Get ().ApplicationClose ();
 				
@@ -97,12 +104,52 @@ void new_MVC_Layer::OnImGuiRender()
 		ImGui::End ();
 	}
 }
+
+void Extending_Dictionary_of (Text_Object *object)
+{
+	auto filePath = GLCore::Utils::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0"); bool unique = true;
+
+	for (std::string &strs : *object->m_LoadedDictionaries)
+		if (strs == filePath) {
+			unique = false; break;
+		}
+
+	if (unique) {
+		if (object->m_Symspell->LoadDictionary (filePath.c_str (), 0, 1, XL (' ')))
+			object->m_LoadedDictionaries->push_back (filePath);
+	}
+}
+
 void new_MVC_Layer::MenuBarItems ()
 {
 	if (ImGui::BeginMenu ("File")) {
 		if(ImGui::MenuItem ("Open"))
-			OpenFileAsText(GLCore::Utils::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0").c_str());
+			OpenFileAsText(GLCore::Utils::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0").c_str()), Text_Object::s_FocusedTextObject = nullptr;
 		ImGui::EndMenu ();
+	}
+	ImGui::SameLine ();
+	ImGui::Bullet ();
+
+	if (Text_Object::s_FocusedTextObject != nullptr) {
+		if (ImGui::BeginMenu ("Dictionary")) {
+
+			if (ImGui::MenuItem ("Add A Dictionary"))
+				Extending_Dictionary_of (Text_Object::s_FocusedTextObject);
+
+			if (ImGui::BeginMenu ("Loaded Dictionary")) {
+
+				for (std::string &dict_path : *Text_Object::s_FocusedTextObject->m_LoadedDictionaries)
+					ImGui::MenuItem (dict_path.c_str ());
+				
+				ImGui::EndMenu ();
+			}
+
+			ImGui::EndMenu ();
+		}
+		ImGui::SameLine ();
+		ImGui::Text ("  Selected: ");
+		ImGui::SameLine ();
+		ImGui::Text (Text_Object::s_FocusedTextObject->m_FileName);
 	}
 }
 void new_MVC_Layer::ImGuiRenderDockables ()
@@ -111,21 +158,101 @@ void new_MVC_Layer::ImGuiRenderDockables ()
 		ImGui::SetNextWindowDockID (m_DockspaceID, (i == 0) ? ImGuiCond_Always : ImGuiCond_Once);
 		
 		ImGui::PushID (i);
-		ImGui::Begin (m_TextFileObjects[i].m_FileName); // NOTE: they may have same name
+		ImGui::Begin (GLCore::ImGuiLayer::UniqueName (m_TextFileObjects[i].m_FileName)); // NOTE: they may have same name
 
 		m_TextFileObjects[i].ImGuiTextRender ();
 
 		ImGui::End ();
 		ImGui::PopID ();
 	}
+
+	App_Settings  ();
 }
 
+void new_MVC_Layer::Save_settings ()
+{
+	if (s_Settings_changed) {
+		/*############################
+		### Check & Apply Settings */
+		// For unified dictionary
+		if (s_Settings_Global.UnifiedDictionary != s_Settings_temp.UnifiedDictionary) {
+			s_Settings_Global.UnifiedDictionary = ChangeUnifiedDictionaryState (s_Settings_temp.UnifiedDictionary, *this);
+		}
+
+		s_Settings_changed = false;
+	}
+}
+void new_MVC_Layer::Discard_settings_changes ()
+{
+	s_Settings_temp.UnifiedDictionary = s_Settings_Global.UnifiedDictionary;
+
+	s_Settings_changed = false;
+}
 
 void new_MVC_Layer::OpenFileAsText (const char *filePath /*= ""*/)
 {
 	auto Obj = Text_Object::OpenFileAsText (filePath);
-	if (Obj)
-	{
-		m_TextFileObjects.push_back (std::move (Obj.value ()));
+	if (Obj) {
+		uint32_t *save_state = new uint32_t[m_TextFileObjects.size () + 1];
+		{
+			uint32_t i = 0;
+			for (auto &obj: m_TextFileObjects) {
+				save_state[i] = uint32_t(obj.m_Symspell - &m_Dictionaries[0].first);
+				i++;
+			}
+		}
+
+		m_TextFileObjects.push_back (Obj.value ());
+		if (s_Settings_Global.UnifiedDictionary || m_TextFileObjects.size () == 1) {
+			save_state[m_TextFileObjects.size () - 1] = 0;
+		} else { // not unified
+			{
+				SymSpell tmp1 (1, 3, 4);
+				std::vector<std::string> tmp2;
+				m_Dictionaries.push_back ({tmp1, tmp2});
+			}
+			save_state[m_TextFileObjects.size () - 1] = m_Dictionaries.size ()-1;
+		}
+		for (uint32_t i = 0; i < m_TextFileObjects.size (); i++)
+			m_TextFileObjects[i].m_Symspell = &m_Dictionaries[save_state[i]].first, m_TextFileObjects[i].m_LoadedDictionaries = &m_Dictionaries[save_state[i]].second;
+		
+		if (m_TextFileObjects.size () > 1)
+			delete[] save_state;
+		else delete save_state;
+	}
+}
+
+void new_MVC_Layer::App_Settings ()
+{
+	if (m_ShowAppSettingsEditor) {
+		ImGui::Begin ("App Settings", &m_ShowAppSettingsEditor);
+		
+		if (s_Settings_changed) {
+
+			float draw_width = ImGui::GetContentRegionAvailWidth () - 5;
+
+			if (ImGui::Button ("Save Changes", ImVec2 (draw_width / 2, 30))) Save_settings ();
+			ImGui::SameLine ();
+			if (ImGui::Button ("Discard Changes", ImVec2 (draw_width / 2, 30))) Discard_settings_changes ();
+
+		} else {
+			ImGui::Button ("No Change Occurred", ImVec2 (-1, 30));
+		}
+
+		// ImGui::ShowStyleEditor ();
+		if (ImGui::BeginTabBar ("Sections")) {
+			if (ImGui::BeginTabItem ("Core")) {
+
+				s_Settings_changed |= ImGui::Checkbox ("Unified Dictionary(if unchecked uses seperate dictionary for Every instance)", &s_Settings_temp.UnifiedDictionary);
+
+
+				ImGui::EndTabItem ();
+			}
+
+			ImGui::EndTabBar ();
+		}
+
+
+		ImGui::End ();
 	}
 }

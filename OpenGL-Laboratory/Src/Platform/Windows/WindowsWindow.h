@@ -22,6 +22,8 @@ namespace GLCore {
 		void SetVSync(bool enabled) override;
 		bool IsVSync() const override;
 
+		void SetOpacity(float opacity) override;
+
 		inline virtual void* GetNativeWindow() const { return m_Window; }
 	private:
 		virtual void Init(const WindowProps& props);
@@ -33,6 +35,7 @@ namespace GLCore {
 		{
 			std::string Title;
 			uint32_t Width, Height;
+			float Opacity;
 			bool VSync;
 
 			EventCallbackFn EventCallback;
@@ -40,5 +43,4 @@ namespace GLCore {
 
 		WindowData m_Data;
 	};
-
 }
