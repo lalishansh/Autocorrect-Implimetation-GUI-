@@ -26,7 +26,10 @@ void new_MVC_Layer::OnEvent(Event& event)
 
 
 void new_MVC_Layer::OnUpdate (Timestep ts)
-{}
+{
+	if (Text_Object::s_FocusedTextObject)
+		Text_Object::s_FocusedTextObject->OnUpdate ();
+}
 
 void new_MVC_Layer::OnImGuiRender()
 {
@@ -83,11 +86,10 @@ void new_MVC_Layer::OnImGuiRender()
 		// DockSpace's MenuBar
 		if (ImGui::BeginMenuBar ()) {
 			if (ImGui::BeginMenu ("Main")) {
-				// Disabling fullscreen would allow the window to be moved to the front of other windows, 
-				// which we can't undo at the moment without finer window depth/z control.
-				//ImGui::MenuItem("Fullscreen", NULL, &opt_fullscreen_persistant);
+				Text_Object::s_FocusedTextObject = nullptr;
+
 				if (ImGui::MenuItem ("Style Editor")) 
-					m_ShowAppSettingsEditor = true, Text_Object::s_FocusedTextObject = nullptr;
+					m_ShowAppSettingsEditor = true;
 				if (ImGui::MenuItem ("Exit")) 
 					Application::Get ().ApplicationClose ();
 				
@@ -105,7 +107,7 @@ void new_MVC_Layer::OnImGuiRender()
 	}
 }
 
-void Extending_Dictionary_of (Text_Object *object)
+void new_MVC_Layer::Extending_Dictionary_of (Text_Object *object)
 {
 	auto filePath = GLCore::Utils::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0"); bool unique = true;
 
@@ -123,8 +125,10 @@ void Extending_Dictionary_of (Text_Object *object)
 void new_MVC_Layer::MenuBarItems ()
 {
 	if (ImGui::BeginMenu ("File")) {
+		Text_Object::s_FocusedTextObject = nullptr;
+
 		if(ImGui::MenuItem ("Open"))
-			OpenFileAsText(GLCore::Utils::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0").c_str()), Text_Object::s_FocusedTextObject = nullptr;
+			OpenFileAsText(GLCore::Utils::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0").c_str());
 		ImGui::EndMenu ();
 	}
 	ImGui::SameLine ();
@@ -158,7 +162,7 @@ void new_MVC_Layer::ImGuiRenderDockables ()
 		ImGui::SetNextWindowDockID (m_DockspaceID, (i == 0) ? ImGuiCond_Always : ImGuiCond_Once);
 		
 		ImGui::PushID (i);
-		ImGui::Begin (GLCore::ImGuiLayer::UniqueName (m_TextFileObjects[i].m_FileName)); // NOTE: they may have same name
+		ImGui::Begin (GLCore::ImGuiLayer::UniqueName (m_TextFileObjects[i].m_FileName), NULL, ImGuiWindowFlags_NoBringToFrontOnFocus); // NOTE: they may have same name
 
 		m_TextFileObjects[i].ImGuiTextRender ();
 
@@ -202,12 +206,13 @@ void new_MVC_Layer::OpenFileAsText (const char *filePath /*= ""*/)
 			}
 		}
 
-		m_TextFileObjects.push_back (Obj.value ());
+		m_TextFileObjects.push_back (std::move(Obj.value ()));
 		if (s_Settings_Global.UnifiedDictionary || m_TextFileObjects.size () == 1) {
 			save_state[m_TextFileObjects.size () - 1] = 0;
 		} else { // not unified
 			{
-				SymSpell tmp1 (1, 3, 4);
+				SymSpell tmp1 (1, symspell_Max_Edit_Distance, symspell_Prefix_length
+				);
 				std::vector<std::string> tmp2;
 				m_Dictionaries.push_back ({tmp1, tmp2});
 			}
@@ -216,9 +221,7 @@ void new_MVC_Layer::OpenFileAsText (const char *filePath /*= ""*/)
 		for (uint32_t i = 0; i < m_TextFileObjects.size (); i++)
 			m_TextFileObjects[i].m_Symspell = &m_Dictionaries[save_state[i]].first, m_TextFileObjects[i].m_LoadedDictionaries = &m_Dictionaries[save_state[i]].second;
 		
-		if (m_TextFileObjects.size () > 1)
-			delete[] save_state;
-		else delete save_state;
+		delete[] save_state;
 	}
 }
 
@@ -244,7 +247,6 @@ void new_MVC_Layer::App_Settings ()
 			if (ImGui::BeginTabItem ("Core")) {
 
 				s_Settings_changed |= ImGui::Checkbox ("Unified Dictionary(if unchecked uses seperate dictionary for Every instance)", &s_Settings_temp.UnifiedDictionary);
-
 
 				ImGui::EndTabItem ();
 			}

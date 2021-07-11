@@ -275,6 +275,21 @@ public:
 	/// sorted by edit distance, and secondarily by count frequency.</returns>
 	vector<SuggestItem> Lookup(xstring input, Verbosity verbosity, int maxEditDistance, bool includeUnknown);
 
+
+	/* For Multi-threading and support for safe thread cancel */
+	/// <summary>Find suggested spellings for a given input word.</summary>
+	/// <param name="input">The word being spell checked.</param>
+	/// <param name="verbosity">The value controlling the quantity/closeness of the retuned suggestions.</param>
+	/// <param name="maxEditDistance">The maximum edit distance between input and suggested words.</param>
+	/// <param name="includeUnknown">Include input word in suggestions, if no words within edit distance found.</param>																													   
+	/// <param name="instant_access_to_suggestions">NOTE: will be turned nullptr the moment function returns, 
+	/// reference to a pointer pointing to suggestions being worked upon in real-time </param>																													   
+	/// <param name="safe_cancel_signal">NOTE: it won't turn false when function returns, 
+	/// pointer to bool, when turns true Lookup is safely canceled.</param>																													   
+	/// <returns>A List of SuggestItem object representing suggested correct spellings for the input word, 
+	/// sorted by edit distance, and secondarily by count frequency.</returns>
+	vector<SuggestItem> Lookup(xstring input, Verbosity verbosity, int maxEditDistance, bool includeUnknown, vector<SuggestItem>** instant_access_to_suggestions, bool *safe_cancel_signal);
+
 private:
 	//check whether all delete chars are present in the suggestion prefix in correct order, otherwise this is just a hash collision
 	bool DeleteInSuggestionPrefix(xstring deleteSugg, int deleteLen, xstring suggestion, int suggestionLen);

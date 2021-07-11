@@ -42,7 +42,8 @@ public:
 	virtual void OnUpdate (GLCore::Timestep ts) override;
 	virtual void OnImGuiRender() override;
 
-	void OpenFileAsText (const char* filePath = "");
+	static void Extending_Dictionary_of (Text_Object *object);
+	void OpenFileAsText (const char *filePath = "");
 	void App_Settings ();
 	// void HomeScreen () {}
 private:

@@ -41,7 +41,7 @@ public:
 		char *newData = new char[newCapacity];
 		if (data) {
 			memcpy (newData, data, size);
-			delete data;
+			delete[] data;
 		} else {
 			newData[0] = '\0';
 		}

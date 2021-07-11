@@ -45,6 +45,7 @@ public:
 		*(uint32_t *)((void *)&m_Buffer_Size) = 0;
 	}
 	void ImGuiTextRender ();
+	void OnUpdate ();
 private:
 	void ResizeBuffer (uint32_t new_size);
 public:
@@ -52,10 +53,10 @@ public:
 	static Text_Object *s_FocusedTextObject;
 private:
 	// Text-Box related
-	bool m_Focused = false; // use focus to handle ImGui call-back
 	bool m_ResetFocus = false;
-	bool m_CancelLookup = false; // to be passed to lookup(modified) as pointer so we can cancel lookup
+	bool m_CancelLookup = false; // Think of ways to keep it alive in L3 cache // to be passed to lookup(modified) as pointer so we can cancel lookup
 	bool m_ReStartLookup = false;
+	int m_SelectSuggestion = -1;
 
 	// Buffer
 	const uint32_t m_Buffer_Capacity = 0; // will only be modified when resizing
@@ -70,8 +71,12 @@ private:
 	
 	//// results
 	std::vector<SuggestItem> *m_SuggestionsRef = nullptr; // will be used for output
-	std::future<std::vector<SuggestItem>> m_Suggestions; // will store results obtained
-	
+	std::future<std::vector<SuggestItem>> m_Suggestions_future = std::async (std::launch::deferred, 
+																	  []() {
+																		  return std::vector<SuggestItem> ();
+																	  }); // will store results obtained
+	std::vector<SuggestItem> m_Suggestions;
+
 	std::string m_FilePath;
 public:
 	const char* m_FileName;

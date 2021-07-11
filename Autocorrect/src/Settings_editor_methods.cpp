@@ -27,7 +27,7 @@ bool ChangeUnifiedDictionaryState (const bool state, new_MVC_Layer &layer)
 		{
 			bool *non_duplicates = new bool[locationOfDictionaries.size ()];
 
-			uint32_t i = 0;
+			int i = 0;
 			for (std::string &str_ref1 : locationOfDictionaries) { // assuming no duplicates in layer.m_Dictionaries[0].second
 				non_duplicates[i] = true;
 				for (uint32_t j = i + 1; j < locationOfDictionaries.size () + layer.m_Dictionaries[0].second.size (); j++) {
@@ -42,7 +42,7 @@ bool ChangeUnifiedDictionaryState (const bool state, new_MVC_Layer &layer)
 				i++;
 			}
 
-			for (i = locationOfDictionaries.size () - 1; i != 0; i--)
+			for (i = locationOfDictionaries.size () - 1; i > -1; i--)
 				if (non_duplicates[i] == false)
 					locationOfDictionaries.erase (locationOfDictionaries.begin () + i);
 			delete[] non_duplicates;
@@ -90,9 +90,7 @@ bool ChangeUnifiedDictionaryState (const bool state, new_MVC_Layer &layer)
 		for (uint32_t i = 0; i < layer.m_TextFileObjects.size (); i++)
 			layer.m_TextFileObjects[i].m_Symspell = &layer.m_Dictionaries[save_state[i]].first, layer.m_TextFileObjects[i].m_LoadedDictionaries = &layer.m_Dictionaries[save_state[i]].second;
 		
-		if (layer.m_TextFileObjects.size () > 1)
-			delete[] save_state;
-		else delete save_state;
+		delete[] save_state;
 
 		for (auto &obj : layer.m_TextFileObjects)
 			obj.m_CancelLookup = false;
