@@ -44,8 +44,9 @@ public:
 		*(uint32_t *)((void *)&m_Buffer_Capacity) = 0;
 		*(uint32_t *)((void *)&m_Buffer_Size) = 0;
 	}
-	void ImGuiTextRender ();
+	void ImGuiTextRender (bool suggestion_nav_with_ctrl);
 	void OnUpdate ();
+	void OnEvent (char event);
 private:
 	void ResizeBuffer (uint32_t new_size);
 public:

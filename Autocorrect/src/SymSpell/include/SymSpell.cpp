@@ -3,6 +3,10 @@
 
 #include <filesystem>
 
+#define MIN(x,y) (x > y ? y :  x)
+#define MAX(x,y) (x > y ? x :  y)
+
+
 /// <summary>Maximum edit distance for dictionary precalculation.</summary>
 int SymSpell::MaxDictionaryEditDistance()
 {
@@ -320,7 +324,7 @@ bool SymSpell::LoadDictionary(xifstream& corpusStream, int termIndex, int countI
 		if (i % skip_amount == 0) {
 			int end_prev = end;
 			end = clock ();
-			skip_amount = max(3000/(end - end_prev), 20);
+			skip_amount = MAX(3000/(end - end_prev), 20);
 			//while (std::cout.tellp () > initial_cout_pos)
 			//	std::cout << '\b';
 			std::cout << "\rTime Escaped: " << (float)((end - start)*1000 / (CLOCKS_PER_SEC)) << "ms, No. Lines processed: " << i;
@@ -515,7 +519,7 @@ vector<SuggestItem> SymSpell::Lookup(xstring input, Verbosity verbosity, int max
 						|| (suggestionLen < candidateLen) // sugg must be for a different delete string, in same bin only because of hash collision
 						|| (suggestionLen == candidateLen && suggestion != candidate)) // if sugg len = delete len, then it either equals delete or is in same bin only because of hash collision
 						continue;
-					auto suggPrefixLen = min(suggestionLen, prefixLength);
+					auto suggPrefixLen = MIN(suggestionLen, prefixLength);
 					if (suggPrefixLen > inputPrefixLen && (suggPrefixLen - candidateLen) > maxEditDistance2) continue;
 
 					//True Damerau-Levenshtein Edit Distance: adjust distance, if both distances>0
@@ -530,7 +534,7 @@ vector<SuggestItem> SymSpell::Lookup(xstring input, Verbosity verbosity, int max
 					if (candidateLen == 0)
 					{
 						//suggestions which have no common chars with input (inputLen<=maxEditDistance && suggestionLen<=maxEditDistance)
-						distance = max(inputLen, suggestionLen);
+						distance = MAX(inputLen, suggestionLen);
 						auto flag = hashset2.insert(suggestion);
 						if (distance > maxEditDistance2 || !flag.second) continue;
 					}
@@ -550,7 +554,7 @@ vector<SuggestItem> SymSpell::Lookup(xstring input, Verbosity verbosity, int max
 						//, then editdistance>maxEditDistance and no need for Levenshtein calculation  
 						//      (inputLen >= prefixLength) && (suggestionLen >= prefixLength) 
 						if ((prefixLength - maxEditDistance == candidateLen)
-							&& (((min_len = min(inputLen, suggestionLen) - prefixLength) > 1)
+							&& (((min_len = MIN(inputLen, suggestionLen) - prefixLength) > 1)
 								&& (input.substr(inputLen + 1 - min_len) != suggestion.substr(suggestionLen + 1 - min_len)))
 							|| ((min_len > 0) && (input[inputLen - min_len] != suggestion[suggestionLen - min_len])
 								&& ((input[inputLen - min_len - 1] != suggestion[suggestionLen - min_len])
@@ -735,7 +739,7 @@ std::vector<SuggestItem> SymSpell::Lookup (xstring input, Verbosity verbosity, i
 						|| (suggestionLen < candidateLen) // sugg must be for a different delete string, in same bin only because of hash collision
 						|| (suggestionLen == candidateLen && suggestion != candidate)) // if sugg len = delete len, then it either equals delete or is in same bin only because of hash collision
 						continue;
-					auto suggPrefixLen = min(suggestionLen, prefixLength);
+					auto suggPrefixLen = MIN(suggestionLen, prefixLength);
 					if (suggPrefixLen > inputPrefixLen && (suggPrefixLen - candidateLen) > maxEditDistance2) continue;
 
 					//True Damerau-Levenshtein Edit Distance: adjust distance, if both distances>0
@@ -750,7 +754,7 @@ std::vector<SuggestItem> SymSpell::Lookup (xstring input, Verbosity verbosity, i
 					if (candidateLen == 0)
 					{
 						//suggestions which have no common chars with input (inputLen<=maxEditDistance && suggestionLen<=maxEditDistance)
-						distance = max(inputLen, suggestionLen);
+						distance = MAX(inputLen, suggestionLen);
 						auto flag = hashset2.insert(suggestion);
 						if (distance > maxEditDistance2 || !flag.second) continue;
 					}
@@ -770,7 +774,7 @@ std::vector<SuggestItem> SymSpell::Lookup (xstring input, Verbosity verbosity, i
 						//, then editdistance>maxEditDistance and no need for Levenshtein calculation  
 						//      (inputLen >= prefixLength) && (suggestionLen >= prefixLength) 
 						if ((prefixLength - maxEditDistance == candidateLen)
-							&& (((min_len = min(inputLen, suggestionLen) - prefixLength) > 1)
+							&& (((min_len = MIN(inputLen, suggestionLen) - prefixLength) > 1)
 								&& (input.substr(inputLen + 1 - min_len) != suggestion.substr(suggestionLen + 1 - min_len)))
 							|| ((min_len > 0) && (input[inputLen - min_len] != suggestion[suggestionLen - min_len])
 								&& ((input[inputLen - min_len - 1] != suggestion[suggestionLen - min_len])
@@ -1080,18 +1084,18 @@ END_OF_OPERATION:
 										if ((suggestions1[0].term + suggestions2[0].term == termList1[i]))
 										{
 											//make count bigger than count of single term correction
-											suggestionSplit.count = max(suggestionSplit.count, suggestions[0].count + 2);
+											suggestionSplit.count = MAX(suggestionSplit.count, suggestions[0].count + 2);
 										}
 										else if ((suggestions1[0].term == suggestions[0].term) || (suggestions2[0].term == suggestions[0].term))
 										{
 											//make count bigger than count of single term correction
-											suggestionSplit.count = max(suggestionSplit.count, suggestions[0].count + 1);
+											suggestionSplit.count = MAX(suggestionSplit.count, suggestions[0].count + 1);
 										}
 									}
 									//no single term correction exists
 									else if ((suggestions1[0].term + suggestions2[0].term == termList1[i]))
 									{
-										suggestionSplit.count = max(suggestionSplit.count, max(suggestions1[0].count, suggestions2[0].count) + 2);
+										suggestionSplit.count = MAX(suggestionSplit.count, MAX(suggestions1[0].count, suggestions2[0].count) + 2);
 									}
 
 								}
@@ -1099,7 +1103,7 @@ END_OF_OPERATION:
 								{
 									//The Naive Bayes probability of the word combination is the product of the two word probabilities: P(AB) = P(A) * P(B)
 									//use it to estimate the frequency count of the combination, which then is used to rank/select the best splitting variant  
-									suggestionSplit.count = min(bigramCountMin, (int64_t)((double)suggestions1[0].count / (double)N * (double)suggestions2[0].count));
+									suggestionSplit.count = MIN(bigramCountMin, (int64_t)((double)suggestions1[0].count / (double)N * (double)suggestions2[0].count));
 								}
 
 								if (suggestionSplit.count > suggestionSplitBest.count) suggestionSplitBest.set(suggestionSplit);
@@ -1189,7 +1193,7 @@ END_OF_OPERATION:
 	/// the Sum of word occurence probabilities in log scale (a measure of how common and probable the corrected segmentation is).</returns> 
 	Info SymSpell::WordSegmentation(xstring input, int maxEditDistance, int maxSegmentationWordLength)
 	{
-		int arraySize = min(maxSegmentationWordLength, (int)input.size());
+		int arraySize = MIN(maxSegmentationWordLength, (int)input.size());
 		vector<Info> compositions = vector<Info>(arraySize);
 		int circularIndex = -1;
 
@@ -1197,7 +1201,7 @@ END_OF_OPERATION:
 		for (int j = 0; j < input.size(); j++)
 		{
 			//inner loop (row): all possible part lengths (from start position): part can't be bigger than longest word in dictionary (other than long unknown word)
-			int imax = min((int)input.size() - j, maxSegmentationWordLength);
+			int imax = MIN((int)input.size() - j, maxSegmentationWordLength);
 			for (int i = 1; i <= imax; i++)
 			{
 				//get top spelling correction/ed for part

@@ -1,7 +1,12 @@
 #include "GLCore.h"
 #include "new_MVC_Layer.h"
-//#include <wstring>
 //#include "MVC_Layer.h"
+
+// TODO: Update GLCore::Core (Input, KeyCode, MouseButtonCode)
+// TODO: Update GLCore::Events (Event, KeyEvent, MouseEvent)
+// TODO: Update GLCore::Events (Event, KeyEvent, MouseEvent)
+// TODO: Update GLCore::Platform (WindowInput, windowswindow)
+// TODO: Update GLCore.h
 
 using namespace GLCore;
 

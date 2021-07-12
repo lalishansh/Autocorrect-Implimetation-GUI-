@@ -3,36 +3,16 @@
 #include <GLCore.h>
 #include <GLCoreUtils.h>
 #include <imgui/imgui.h>
-#include "Text_Object.h"
 #include <filesystem>
 #include "Settings_editor_methods.h"
 
+class Text_Object;
+class SymSpell;
 // Singleton
 class new_MVC_Layer : public GLCore::Layer
 {
 public:
-	new_MVC_Layer (int argc, char *argv[])
-	{
-		{
-			SymSpell tmp1 (1, 3, 4);
-			std::vector<std::string> tmp2;
-			m_Dictionaries.push_back ({tmp1, tmp2});
-		}
-		if (argc > 1) { // received input
-			
-			for (uint32_t i = 1; i < argc; i++) {
-				if (argv[i][1] == ':' && (argv[i][2] == '\\' || argv[i][2] == '/')) { // i.e c:\---- absolute path
-					OpenFileAsText (argv[i]);
-				} else { // relative path
-					std::string path = std::filesystem::current_path ().u8string ();
-					path+='\\';
-					path+=argv[i];
-					OpenFileAsText (path.data ());
-				}
-			}
-
-		}
-	}
+	new_MVC_Layer (int argc, char *argv[]);
 	~new_MVC_Layer () = default;
 
 	virtual void OnAttach() override;
@@ -45,6 +25,7 @@ public:
 	static void Extending_Dictionary_of (Text_Object *object);
 	void OpenFileAsText (const char *filePath = "");
 	void App_Settings ();
+	static void Defocus_Text_object ();
 	// void HomeScreen () {}
 private:
 	void ImGuiRenderDockables ();
@@ -65,7 +46,8 @@ private:
 
 	struct _Settings
 	{
-		bool UnifiedDictionary = false;
+		bool UnifiedDictionary       = true;
+		bool UseCtrlForSuggestionNav = true;
 	};
 	static _Settings s_Settings_Global, s_Settings_temp;
 

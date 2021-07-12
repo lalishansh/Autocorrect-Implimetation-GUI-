@@ -1,4 +1,6 @@
 #include "new_MVC_Layer.h"
+#include "Text_Object.h"
+
 #include "GLCore/Core/Input.h"
 #include "GLCore/Core/KeyCodes.h"
 #include "GLCore/Core/MouseButtonCodes.h"
@@ -6,15 +8,39 @@
 #include "imgui/imgui.h"
 #include <thread>
 
+
+
 using namespace GLCore;
 using namespace GLCore::Utils;
 
 const char *new_MVC_Layer::s_AppDataLocation = "C:\\Autocorrect_Text_Editor_Cache\\cache.txt";
 
 bool new_MVC_Layer::s_Settings_changed = false;
-new_MVC_Layer::_Settings new_MVC_Layer::s_Settings_Global = {true};
-new_MVC_Layer::_Settings new_MVC_Layer::s_Settings_temp = {true};
+new_MVC_Layer::_Settings new_MVC_Layer::s_Settings_Global = {};
+new_MVC_Layer::_Settings new_MVC_Layer::s_Settings_temp = {};
 
+new_MVC_Layer::new_MVC_Layer (int argc, char *argv[])
+{
+	{
+		SymSpell tmp1 (1, 3, 4);
+		std::vector<std::string> tmp2;
+		m_Dictionaries.push_back ({ tmp1, tmp2 });
+	}
+	if (argc > 1) { // received input
+
+		for (uint32_t i = 1; i < argc; i++) {
+			if (argv[i][1] == ':' && (argv[i][2] == '\\' || argv[i][2] == '/')) { // i.e c:\---- absolute path
+				OpenFileAsText (argv[i]);
+			} else { // relative path
+				std::string path = std::filesystem::current_path ().u8string ();
+				path += '\\';
+				path += argv[i];
+				OpenFileAsText (path.data ());
+			}
+		}
+
+	}
+}
 void new_MVC_Layer::OnAttach()
 {}
 
@@ -22,8 +48,37 @@ void new_MVC_Layer::OnDetach()
 {}
 
 void new_MVC_Layer::OnEvent(Event& event)
-{}
+{
+	EventDispatcher dispatcher(event);
+	dispatcher.Dispatch<KeyReleasedEvent> (
+		[&](KeyReleasedEvent &event) -> bool {
+			bool ctrl = Input::IsKeyPressed (HZ_KEY_RIGHT_CONTROL) || Input::IsKeyPressed (HZ_KEY_LEFT_CONTROL);
+			
+			if (Text_Object::s_FocusedTextObject && 
+				(s_Settings_Global.UseCtrlForSuggestionNav ? ctrl : !ctrl)) 
+			{
+				if(event.GetKeyCode () == HZ_KEY_UP)
+						Text_Object::s_FocusedTextObject->OnEvent ('U');
+				else if(event.GetKeyCode () == HZ_KEY_DOWN)
+						Text_Object::s_FocusedTextObject->OnEvent ('D');
+			}
+			if (ctrl) { // Shortcuts
+				if (event.GetKeyCode () == HZ_KEY_O) {
+					Defocus_Text_object ();
 
+					OpenFileAsText (GLCore::Utils::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0*.*\0").c_str ());
+				}
+				if (Text_Object::s_FocusedTextObject != nullptr) {
+					if (event.GetKeyCode () == HZ_KEY_A)
+						Extending_Dictionary_of (Text_Object::s_FocusedTextObject);
+
+					else if (event.GetKeyCode () == HZ_KEY_S)
+						Text_Object::s_FocusedTextObject->OnEvent ('S');
+				}
+			}
+			return true;
+		});
+}
 
 void new_MVC_Layer::OnUpdate (Timestep ts)
 {
@@ -86,7 +141,7 @@ void new_MVC_Layer::OnImGuiRender()
 		// DockSpace's MenuBar
 		if (ImGui::BeginMenuBar ()) {
 			if (ImGui::BeginMenu ("Main")) {
-				Text_Object::s_FocusedTextObject = nullptr;
+				Defocus_Text_object ();
 
 				if (ImGui::MenuItem ("Style Editor")) 
 					m_ShowAppSettingsEditor = true;
@@ -125,10 +180,10 @@ void new_MVC_Layer::Extending_Dictionary_of (Text_Object *object)
 void new_MVC_Layer::MenuBarItems ()
 {
 	if (ImGui::BeginMenu ("File")) {
-		Text_Object::s_FocusedTextObject = nullptr;
+		Defocus_Text_object ();
 
 		if(ImGui::MenuItem ("Open"))
-			OpenFileAsText(GLCore::Utils::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0").c_str());
+			OpenFileAsText(GLCore::Utils::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0*.*\0").c_str());
 		ImGui::EndMenu ();
 	}
 	ImGui::SameLine ();
@@ -164,7 +219,7 @@ void new_MVC_Layer::ImGuiRenderDockables ()
 		ImGui::PushID (i);
 		ImGui::Begin (GLCore::ImGuiLayer::UniqueName (m_TextFileObjects[i].m_FileName), NULL, ImGuiWindowFlags_NoBringToFrontOnFocus); // NOTE: they may have same name
 
-		m_TextFileObjects[i].ImGuiTextRender ();
+		m_TextFileObjects[i].ImGuiTextRender (s_Settings_Global.UseCtrlForSuggestionNav);
 
 		ImGui::End ();
 		ImGui::PopID ();
@@ -182,6 +237,10 @@ void new_MVC_Layer::Save_settings ()
 		if (s_Settings_Global.UnifiedDictionary != s_Settings_temp.UnifiedDictionary) {
 			s_Settings_Global.UnifiedDictionary = ChangeUnifiedDictionaryState (s_Settings_temp.UnifiedDictionary, *this);
 		}
+		// For unified dictionary
+		if (s_Settings_Global.UseCtrlForSuggestionNav != s_Settings_temp.UseCtrlForSuggestionNav) {
+			s_Settings_Global.UseCtrlForSuggestionNav  = s_Settings_temp.UseCtrlForSuggestionNav;
+		}
 
 		s_Settings_changed = false;
 	}
@@ -189,6 +248,7 @@ void new_MVC_Layer::Save_settings ()
 void new_MVC_Layer::Discard_settings_changes ()
 {
 	s_Settings_temp.UnifiedDictionary = s_Settings_Global.UnifiedDictionary;
+	s_Settings_temp.UseCtrlForSuggestionNav = s_Settings_Global.UseCtrlForSuggestionNav;
 
 	s_Settings_changed = false;
 }
@@ -225,6 +285,17 @@ void new_MVC_Layer::OpenFileAsText (const char *filePath /*= ""*/)
 	}
 }
 
+void new_MVC_Layer::Defocus_Text_object ()
+{
+	if (Text_Object::s_FocusedTextObject != nullptr) {
+
+		// Other Operations like auto-saving
+
+		Text_Object::s_FocusedTextObject = nullptr;
+		LOG_TRACE ("De-Focused");
+	}
+}
+
 void new_MVC_Layer::App_Settings ()
 {
 	if (m_ShowAppSettingsEditor) {
@@ -247,6 +318,7 @@ void new_MVC_Layer::App_Settings ()
 			if (ImGui::BeginTabItem ("Core")) {
 
 				s_Settings_changed |= ImGui::Checkbox ("Unified Dictionary(if unchecked uses seperate dictionary for Every instance)", &s_Settings_temp.UnifiedDictionary);
+				s_Settings_changed |= ImGui::Checkbox ("Use Ctrl + Up/Dn instead of just Up/Dn for suggestions navigation", &s_Settings_temp.UseCtrlForSuggestionNav);
 
 				ImGui::EndTabItem ();
 			}

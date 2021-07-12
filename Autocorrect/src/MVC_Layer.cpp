@@ -1,4 +1,6 @@
 #include "MVC_Layer.h"
+#include <glm/glm.hpp>
+
 #include "GLCore/Core/Input.h"
 #include "GLCore/Core/KeyCodes.h"
 #include "GLCore/Core/MouseButtonCodes.h"
@@ -118,7 +120,7 @@ MVC_Layer::~MVC_Layer()
 
 void MVC_Layer::OnAttach()
 {
-	EnableGLDebugging();
+	// EnableGLDebugging();
 }
 
 void MVC_Layer::OnDetach()

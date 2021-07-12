@@ -1,9 +1,12 @@
-﻿#include "Text_Object.h"
+﻿#include "new_MVC_Layer.h"
+#include "Text_Object.h"
+
 #include <fstream>
 #include <istream>
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
 #include <thread>
+
 
 Text_Object *Text_Object::s_FocusedTextObject = nullptr;
 
@@ -31,6 +34,7 @@ std::optional<Text_Object> Text_Object::OpenFileAsText (const char *filePath /*=
 	}
 	return std::make_optional<Text_Object> (filePath, result.c_str(), result.size ());
 }
+
 void Text_Object::ResizeBuffer (uint32_t new_size)
 {
 	if (new_size > m_Buffer_Capacity) {
@@ -41,35 +45,6 @@ void Text_Object::ResizeBuffer (uint32_t new_size)
 		}
 		m_CharecBuffer = temp;
 		*(uint32_t *)((void *)&m_Buffer_Capacity) = new_size;
-	}
-}
-void Text_Object::ImGuiTextRender ()
-{
-	if (ImGui::IsWindowFocused ())
-		s_FocusedTextObject = this;
-
-	if (m_ResetFocus)
-		ImGui::SetKeyboardFocusHere (), m_ResetFocus = false;
-	ImGui::InputTextMultiline ("TextBox", m_CharecBuffer, m_Buffer_Capacity, ImVec2(-1,-1), ImGuiInputTextFlags_CallbackAlways | ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_CallbackCompletion, Text_Object::text_input_callback, this);
-
-	// Display
-	if (m_SuggestionsRef == nullptr) {
-		m_Suggestions = std::move (m_Suggestions_future.get ());
-		m_SuggestionsRef = &m_Suggestions;
-	}
-	if (m_SuggestionsRef->size () > 1 && this == s_FocusedTextObject) {
-		ImVec2 suggestionsDrawPosn = ImGui::GetCurrentContext ()->PlatformImeLastPos;
-		suggestionsDrawPosn.y += 15;
-		ImGui::SetNextWindowPos (suggestionsDrawPosn);
-		ImGui::Begin ("Suggestions", NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoNavInputs);
-		for (uint32_t i = 0; i < m_SuggestionsRef->size (); i++) {
-			auto word = m_SuggestionsRef->at (i);
-			if (ImGui::MenuItem (word.term.c_str ()))
-				m_SelectSuggestion = i, m_ResetFocus = true;
-			
-			if(i > 10) break; // 1st 10 suggestions
-		}
-		ImGui::End ();
 	}
 }
 
@@ -90,13 +65,72 @@ void Text_Object::OnUpdate ()
 	}
 }
 
+void Text_Object::ImGuiTextRender (bool nav_suggestions_with_ctrl)
+{
+	if (ImGui::IsWindowFocused () && s_FocusedTextObject != this) {
+		new_MVC_Layer::Defocus_Text_object ();
+		s_FocusedTextObject = this;
+	}
+
+	if (m_ResetFocus)
+		ImGui::SetKeyboardFocusHere (), m_ResetFocus = false;
+	
+	int Key_Up = ImGui::GetIO ().KeyMap[ImGuiKey_UpArrow];
+	int Key_Dn = ImGui::GetIO ().KeyMap[ImGuiKey_DownArrow];
+	if(m_SuggestionsRef && (nav_suggestions_with_ctrl ? ImGui::GetIO ().KeyCtrl : !ImGui::GetIO ().KeyCtrl))
+		ImGui::GetIO ().KeyMap[ImGuiKey_UpArrow] = (m_SuggestionsRef->size () > 1 && m_SelectSuggestion != -1 ? -1 : Key_Up), ImGui::GetIO ().KeyMap[ImGuiKey_DownArrow] = (m_SuggestionsRef->size () > 1 ? -1 : Key_Dn);
+	ImGui::InputTextMultiline ("TextBox", m_CharecBuffer, m_Buffer_Capacity, ImVec2 (-1, -1), ImGuiInputTextFlags_CallbackAlways | ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_CallbackCompletion, Text_Object::text_input_callback, this);
+	ImGui::GetIO ().KeyMap[ImGuiKey_UpArrow]   = Key_Up;
+	ImGui::GetIO ().KeyMap[ImGuiKey_DownArrow] = Key_Dn;
+
+	// Display
+	if (m_SuggestionsRef == nullptr) {
+		m_Suggestions = std::move (m_Suggestions_future.get ());
+		m_SuggestionsRef = &m_Suggestions;
+	}
+	if (m_SuggestionsRef->size () > 1 && this == s_FocusedTextObject) {
+		ImVec2 suggestionsDrawPosn = ImGui::GetCurrentContext ()->PlatformImeLastPos;
+		suggestionsDrawPosn.y += 15;
+		ImGui::SetNextWindowPos (suggestionsDrawPosn);
+		ImGui::Begin ("Suggestions", NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoNavInputs);
+		for (uint32_t i = 0; i < m_SuggestionsRef->size (); i++) {
+			auto word = m_SuggestionsRef->at (i);
+			bool dummy = i == m_SelectSuggestion;
+			if (ImGui::MenuItem (word.term.c_str (), NULL, &dummy))
+				m_SelectSuggestion = i, m_ResetFocus = true;
+
+			if (i > 10) break; // 1st 10 suggestions
+		}
+		ImGui::End ();
+	}
+}
+
 const uint8_t min_word_width = 3;
 int Text_Object::text_input_callback (ImGuiInputTextCallbackData *data)
 {
-	s_FocusedTextObject = (Text_Object*)data->UserData;
+	if(s_FocusedTextObject != (Text_Object *)data->UserData) {
+		new_MVC_Layer::Defocus_Text_object ();
+		s_FocusedTextObject = s_FocusedTextObject;
+	}
 	switch (data->EventFlag) {
 		case ImGuiInputTextFlags_CallbackCompletion:
-			data->InsertChars (data->CursorPos, "    ");
+			if (s_FocusedTextObject->m_SelectSuggestion > -1) {
+				std::string word = s_FocusedTextObject->m_SuggestionsRef->at (s_FocusedTextObject->m_SelectSuggestion).term;
+
+				uint16_t replace_At = &s_FocusedTextObject->m_TargetWord[0] - data->Buf;
+				uint16_t size = s_FocusedTextObject->m_TargetWord.size ();
+
+				s_FocusedTextObject->m_TargetWord = word;
+				data->DeleteChars (replace_At, size);
+				data->InsertChars (replace_At, word.c_str ());
+
+				s_FocusedTextObject->m_TargetWord = std::string_view (&data->Buf[replace_At], word.size ());
+				s_FocusedTextObject->m_SuggestionsRef->clear ();
+				data->CursorPos = replace_At + word.size ();
+
+				s_FocusedTextObject->m_SelectSuggestion = -1;
+			}else data->InsertChars (data->CursorPos, "    ");
+
 			break;
 		case ImGuiInputTextFlags_CallbackEdit:
 			*(uint32_t *)((void *)&s_FocusedTextObject->m_Buffer_Size) = data->BufTextLen + 1;
@@ -106,7 +140,7 @@ int Text_Object::text_input_callback (ImGuiInputTextCallbackData *data)
 			data->Buf = s_FocusedTextObject->m_CharecBuffer;
 			break;
 		default: // callback_always
-			uint32_t cursor_posn = max(data->CursorPos - 1, 1);
+			uint32_t cursor_posn = MAX(data->CursorPos - 1, 1);
 			if (data->Buf[cursor_posn] != ' ' && data->Buf[cursor_posn] != '\0' && data->Buf[cursor_posn] != '\n' && data->Buf[cursor_posn] != '\r') {
 				uint8_t left = 0;
 				uint8_t right = 0;
@@ -122,21 +156,21 @@ int Text_Object::text_input_callback (ImGuiInputTextCallbackData *data)
 				if (s_FocusedTextObject->m_TargetWord != candidate_word && size >= min_word_width) {
 					s_FocusedTextObject->m_TargetWord = candidate_word, s_FocusedTextObject->m_ReStartLookup = true;
 				}
-
-				if (s_FocusedTextObject->m_SelectSuggestion > -1) {
-					std::string word = s_FocusedTextObject->m_SuggestionsRef->at (s_FocusedTextObject->m_SelectSuggestion).term;
-
-					s_FocusedTextObject->m_TargetWord = word;
-					data->DeleteChars (cursor_posn - left + 1, size);
-					data->InsertChars (cursor_posn - left + 1, word.c_str());
-
-					s_FocusedTextObject->m_TargetWord = std::string_view (&data->Buf[cursor_posn - left + 1], word.size ());
-					s_FocusedTextObject->m_SuggestionsRef->clear (); 
-					data->CursorPos = cursor_posn - left + 1 + word.size ();
-
-					s_FocusedTextObject->m_SelectSuggestion = -1;
-				}
 			}
 	}
 	return 0;
+}
+
+void Text_Object::OnEvent (char event)
+{
+	switch (event) {
+		case 'U':
+			m_SelectSuggestion = MAX(-1, m_SelectSuggestion - 1); break;
+		case 'D':
+			if(m_SuggestionsRef != nullptr)
+			m_SelectSuggestion = MIN(m_SuggestionsRef->size () - 1, m_SelectSuggestion + 1); break;
+		case 'S':
+			// SAVE FILE
+			break;
+	}
 }

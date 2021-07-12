@@ -49,7 +49,7 @@
 #define DEFAULT_COUNT_THRESHOLD 1
 #define DEFAULT_INITIAL_CAPACITY 82765
 #define DEFAULT_COMPACT_LEVEL 5
-#define min3(a, b, c) (min(a, min(b, c)))
+#define min3(a, b, c) (MIN(a, MIN(b, c)))
 #define MAXINT LLONG_MAX
 #define M
 #define MAXLONG MAXINT
