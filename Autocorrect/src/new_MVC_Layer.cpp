@@ -80,10 +80,24 @@ void new_MVC_Layer::OnEvent(Event& event)
 		});
 }
 
+static float on_update_autosave_timer = 0.0f;
 void new_MVC_Layer::OnUpdate (Timestep ts)
 {
-	if (Text_Object::s_FocusedTextObject)
+	if (Text_Object::s_FocusedTextObject) {
+
 		Text_Object::s_FocusedTextObject->OnUpdate ();
+
+		on_update_autosave_timer  += (s_Settings_Global.autosave_enabled ? ts : 0.0f);
+		if (on_update_autosave_timer > s_Settings_Global.autosave_every_in_seconds) {
+			on_update_autosave_timer = 0.0f;
+			Text_Object::s_FocusedTextObject->OnEvent ('S');
+		}
+	}
+	if (Text_Object::s_SignalHint != NULL) {
+		Text_Object::s_SignalPersists_for -= ts;
+		if (Text_Object::s_SignalPersists_for < 0.0f)
+			Text_Object::s_SignalHint = NULL;
+	}
 }
 
 void new_MVC_Layer::OnImGuiRender()
@@ -138,6 +152,7 @@ void new_MVC_Layer::OnImGuiRender()
 
 		style.WindowMinSize.x = defaultMinWinSize;
 
+		float width = ImGui::GetContentRegionAvailWidth ();
 		// DockSpace's MenuBar
 		if (ImGui::BeginMenuBar ()) {
 			if (ImGui::BeginMenu ("Main")) {
@@ -152,6 +167,14 @@ void new_MVC_Layer::OnImGuiRender()
 				ImGui::EndMenu ();
 			}
 			MenuBarItems ();
+
+			if (Text_Object::s_SignalHint != NULL) {
+				ImGui::SameLine ();
+				ImGui::SetCursorPosX (width - 90);
+				ImGui::PushStyleVar (ImGuiStyleVar_Alpha, Text_Object::s_SignalPersists_for / Text_Object::s_SignalPersist_Amt);
+				ImGui::Button (Text_Object::s_SignalHint);
+				ImGui::PopStyleVar ();
+			}
 			ImGui::EndMenuBar ();
 		}
 
@@ -164,17 +187,32 @@ void new_MVC_Layer::OnImGuiRender()
 
 void new_MVC_Layer::Extending_Dictionary_of (Text_Object *object)
 {
-	auto filePath = GLCore::Utils::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0"); bool unique = true;
+	if (!object->m_Locked_Dictionary) {
+		
+		std::string filePath = GLCore::Utils::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0");
+		if (filePath.empty ()) return;
 
-	for (std::string &strs : *object->m_LoadedDictionaries)
-		if (strs == filePath) {
-			unique = false; break;
-		}
+		std::thread dict_add (
+			[&](Text_Object *object, std::string filePath) {
+			*(bool *)((void *)&object->m_Locked_Dictionary) = true;
+			bool unique = true;
 
-	if (unique) {
-		if (object->m_Symspell->LoadDictionary (filePath.c_str (), 0, 1, XL (' ')))
-			object->m_LoadedDictionaries->push_back (filePath);
-	}
+			for (std::string &strs : *object->m_LoadedDictionaries)
+				if (strs == filePath) {
+					unique = false; break;
+				}
+
+			if (unique) {
+				if (object->m_Symspell->LoadDictionary (filePath.c_str (), 0, 1, XL (' ')))
+					object->m_LoadedDictionaries->push_back (filePath), Text_Object::SetSignal ("Extended Dictionary");
+				else Text_Object::SetSignal ("Failed To Load Dictionary");
+			}
+			
+			*(bool *)((void *)&object->m_Locked_Dictionary) = false;
+		}, object, std::move(filePath));
+		dict_add.detach ();
+
+	} else Text_Object::SetSignal ("Dictionary inaccessible");
 }
 
 void new_MVC_Layer::MenuBarItems ()
@@ -184,6 +222,10 @@ void new_MVC_Layer::MenuBarItems ()
 
 		if(ImGui::MenuItem ("Open"))
 			OpenFileAsText(GLCore::Utils::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0*.*\0").c_str());
+
+		if(ImGui::MenuItem ("New"))
+			NewUnTitledTextObject ();
+		
 		ImGui::EndMenu ();
 	}
 	ImGui::SameLine ();
@@ -237,9 +279,16 @@ void new_MVC_Layer::Save_settings ()
 		if (s_Settings_Global.UnifiedDictionary != s_Settings_temp.UnifiedDictionary) {
 			s_Settings_Global.UnifiedDictionary = ChangeUnifiedDictionaryState (s_Settings_temp.UnifiedDictionary, *this);
 		}
-		// For unified dictionary
+		// For Suggestions
 		if (s_Settings_Global.UseCtrlForSuggestionNav != s_Settings_temp.UseCtrlForSuggestionNav) {
 			s_Settings_Global.UseCtrlForSuggestionNav  = s_Settings_temp.UseCtrlForSuggestionNav;
+		}
+		// For AutoSave
+		if (s_Settings_Global.autosave_enabled != s_Settings_temp.autosave_enabled) {
+			s_Settings_Global.autosave_enabled  = s_Settings_temp.autosave_enabled;
+		}
+		if (s_Settings_Global.autosave_every_in_seconds != s_Settings_temp.autosave_every_in_seconds) {
+			s_Settings_Global.autosave_every_in_seconds  = s_Settings_temp.autosave_every_in_seconds;
 		}
 
 		s_Settings_changed = false;
@@ -249,12 +298,16 @@ void new_MVC_Layer::Discard_settings_changes ()
 {
 	s_Settings_temp.UnifiedDictionary = s_Settings_Global.UnifiedDictionary;
 	s_Settings_temp.UseCtrlForSuggestionNav = s_Settings_Global.UseCtrlForSuggestionNav;
+	s_Settings_temp.autosave_enabled = s_Settings_Global.autosave_enabled;
+	s_Settings_temp.autosave_every_in_seconds = s_Settings_Global.autosave_every_in_seconds;
 
 	s_Settings_changed = false;
 }
 
 void new_MVC_Layer::OpenFileAsText (const char *filePath /*= ""*/)
 {
+	// TODO : Check duplicate, if yes focus on it
+
 	auto Obj = Text_Object::OpenFileAsText (filePath);
 	if (Obj) {
 		uint32_t *save_state = new uint32_t[m_TextFileObjects.size () + 1];
@@ -282,12 +335,49 @@ void new_MVC_Layer::OpenFileAsText (const char *filePath /*= ""*/)
 			m_TextFileObjects[i].m_Symspell = &m_Dictionaries[save_state[i]].first, m_TextFileObjects[i].m_LoadedDictionaries = &m_Dictionaries[save_state[i]].second;
 		
 		delete[] save_state;
+		Text_Object::SetSignal ("Opened File");
+	}
+}
+
+void new_MVC_Layer::NewUnTitledTextObject ()
+{
+	{
+		uint32_t *save_state = new uint32_t[m_TextFileObjects.size () + 1];
+		{
+			uint32_t i = 0;
+			for (auto &obj: m_TextFileObjects) {
+				save_state[i] = uint32_t(obj.m_Symspell - &m_Dictionaries[0].first);
+				i++;
+			}
+		}
+
+		m_TextFileObjects.push_back (Text_Object("", " ", 2));
+		if (s_Settings_Global.UnifiedDictionary || m_TextFileObjects.size () == 1) {
+			save_state[m_TextFileObjects.size () - 1] = 0;
+		} else { // not unified
+			{
+				SymSpell tmp1 (1, symspell_Max_Edit_Distance, symspell_Prefix_length
+				);
+				std::vector<std::string> tmp2;
+				m_Dictionaries.push_back ({tmp1, tmp2});
+			}
+			save_state[m_TextFileObjects.size () - 1] = m_Dictionaries.size ()-1;
+		}
+		for (uint32_t i = 0; i < m_TextFileObjects.size (); i++)
+			m_TextFileObjects[i].m_Symspell = &m_Dictionaries[save_state[i]].first, m_TextFileObjects[i].m_LoadedDictionaries = &m_Dictionaries[save_state[i]].second;
+		
+		delete[] save_state;
+		Text_Object::SetSignal ("New Unsaved File");
 	}
 }
 
 void new_MVC_Layer::Defocus_Text_object ()
 {
 	if (Text_Object::s_FocusedTextObject != nullptr) {
+
+		// AutoSave
+		Text_Object::s_FocusedTextObject->OnEvent ('S');
+		on_update_autosave_timer = 0.0f;
 
 		// Other Operations like auto-saving
 
@@ -319,6 +409,9 @@ void new_MVC_Layer::App_Settings ()
 
 				s_Settings_changed |= ImGui::Checkbox ("Unified Dictionary(if unchecked uses seperate dictionary for Every instance)", &s_Settings_temp.UnifiedDictionary);
 				s_Settings_changed |= ImGui::Checkbox ("Use Ctrl + Up/Dn instead of just Up/Dn for suggestions navigation", &s_Settings_temp.UseCtrlForSuggestionNav);
+
+				s_Settings_changed |= ImGui::Checkbox ("Enable Auto-Save", &s_Settings_temp.autosave_enabled); ImGui::SameLine ();
+				s_Settings_changed |= ImGui::SliderFloat ("Auto-Save Delay", &s_Settings_temp.autosave_every_in_seconds, 1.0f, 100.0f);
 
 				ImGui::EndTabItem ();
 			}

@@ -6,9 +6,12 @@
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
 #include <thread>
+#include <GLCoreUtils.h>
 
 
 Text_Object *Text_Object::s_FocusedTextObject = nullptr;
+char *Text_Object::s_SignalHint = nullptr;
+float Text_Object::s_SignalPersists_for = 0;
 
 std::vector<SuggestItem> Lookup_MT (SymSpell *dictionary, std::string input, Verbosity verbosity, int maxEditDistance, bool includeUnknown, vector<SuggestItem> **instant_access_to_suggestions, bool *safe_cancel_signal)
 {
@@ -50,7 +53,7 @@ void Text_Object::ResizeBuffer (uint32_t new_size)
 
 void Text_Object::OnUpdate ()
 {
-	if (m_ReStartLookup) {
+	if (m_ReStartLookup && !m_Locked_Dictionary) {
 		m_ReStartLookup = false;
 		if (m_LoadedDictionaries->size () == 0) return;
 
@@ -75,7 +78,7 @@ void Text_Object::ImGuiTextRender (bool nav_suggestions_with_ctrl)
 	if (m_ResetFocus)
 		ImGui::SetKeyboardFocusHere (), m_ResetFocus = false;
 	
-	int Key_Up = ImGui::GetIO ().KeyMap[ImGuiKey_UpArrow];
+	int Key_Up = ImGui::GetIO ().KeyMap[ ImGuiKey_UpArrow ];
 	int Key_Dn = ImGui::GetIO ().KeyMap[ImGuiKey_DownArrow];
 	if(m_SuggestionsRef && (nav_suggestions_with_ctrl ? ImGui::GetIO ().KeyCtrl : !ImGui::GetIO ().KeyCtrl))
 		ImGui::GetIO ().KeyMap[ImGuiKey_UpArrow] = (m_SuggestionsRef->size () > 1 && m_SelectSuggestion != -1 ? -1 : Key_Up), ImGui::GetIO ().KeyMap[ImGuiKey_DownArrow] = (m_SuggestionsRef->size () > 1 ? -1 : Key_Dn);
@@ -170,7 +173,22 @@ void Text_Object::OnEvent (char event)
 			if(m_SuggestionsRef != nullptr)
 			m_SelectSuggestion = MIN(m_SuggestionsRef->size () - 1, m_SelectSuggestion + 1); break;
 		case 'S':
-			// SAVE FILE
+			if (m_FilePath.empty())
+			{
+				m_FilePath = GLCore::Utils::FileDialogs::SaveFile ("all files (*.*)\0*.txt\0*.*\0");
+				if(m_FilePath.empty())
+					break;
+
+				uint32_t i = 0;
+				while (m_FilePath[m_FilePath.size () - i - 1] != '\\' && m_FilePath[m_FilePath.size () - i - 1] != '/')
+					i++;
+				m_FileName = &m_FilePath[m_FilePath.size () - i];
+			}
+
+			std::ofstream fout(m_FilePath, std::ios::out | std::ios::binary);
+			fout << m_CharecBuffer;
+			fout.close ();
+			Text_Object::SetSignal ("Saved File");
 			break;
 	}
 }

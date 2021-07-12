@@ -24,6 +24,8 @@ public:
 
 	static void Extending_Dictionary_of (Text_Object *object);
 	void OpenFileAsText (const char *filePath = "");
+	void NewUnTitledTextObject ();
+
 	void App_Settings ();
 	static void Defocus_Text_object ();
 	// void HomeScreen () {}
@@ -48,6 +50,10 @@ private:
 	{
 		bool UnifiedDictionary       = true;
 		bool UseCtrlForSuggestionNav = true;
+
+		bool autosave_enabled = false;
+		float autosave_every_in_seconds = 60.0f;
+
 	};
 	static _Settings s_Settings_Global, s_Settings_temp;
 
