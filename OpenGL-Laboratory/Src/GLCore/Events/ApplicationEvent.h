@@ -61,4 +61,22 @@ namespace GLCore {
 		EVENT_CLASS_TYPE(AppRender)
 		EVENT_CLASS_CATEGORY(EventCategoryApplication)
 	};
+
+	class FileDropEvent : public Event
+	{
+	public:
+		FileDropEvent (uint32_t count, const char** sources) 
+			: m_Count(count), m_Sources(sources)
+		{}
+
+		uint32_t FileCount () { return m_Count; }
+		const char** Sources () { return m_Sources; }
+		const char *operator[](uint32_t index) { if (index < m_Count) return m_Sources[index]; else return nullptr; }
+
+		EVENT_CLASS_TYPE(FileDrop)
+		EVENT_CLASS_CATEGORY(EventCategoryApplication)
+	private:
+		uint32_t m_Count;
+		const char **m_Sources;
+	};
 }

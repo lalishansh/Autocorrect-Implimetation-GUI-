@@ -10,6 +10,7 @@
 
 
 
+Text_Object *Text_Object::s_LastFocusedTextObject = nullptr;
 Text_Object *Text_Object::s_FocusedTextObject = nullptr;
 char *Text_Object::s_SignalHint = nullptr;
 float Text_Object::s_SignalPersists_for = 0;
@@ -21,24 +22,46 @@ std::vector<SuggestItem> Lookup_MT (SymSpell &dictionary, std::string input, Ver
 	return tmp;
 }
 
-std::optional<Text_Object> Text_Object::OpenFileAsText (const char *filePath /*= ""*/)
+void Text_Object::QueueDictExtensionSrcs (std::vector<std::string_view> filePaths_view)
 {
-	std::string result;
-	std::ifstream in (filePath, std::ios::in | std::ios::binary);
-	if (in) {
-		in.seekg (0, std::ios::end);
-		size_t size = size_t (in.tellg ());
-
-		// Doesn't matter if empty
-		result.resize (size + 1); // also changes size
-
-		in.seekg (0, std::ios::beg);
-		in.read (&result[0], size);
-	} else {
-		//LOG_ERROR ("Unable To Open File '{0}'", filePath);
-		return {};
+	for (std::string_view item : filePaths_view) {
+		bool duplicate = false;
+		for (std::string &srcs : m_MyDictionary->Sources)
+			if (srcs == item) {	duplicate = true; break; }
+		if(!duplicate) 
+			m_MyDictionary->SourceLoadQueue.push (item);
 	}
-	return std::make_optional<Text_Object> (filePath, result.c_str(), result.size ());
+}
+
+void Text_Object::DeQueueAndLoadDictExtensionSrcs ()
+{
+	if (m_MyDictionary->Lock) return;
+
+	std::vector<std::string> filePaths;
+	filePaths.reserve (m_MyDictionary->SourceLoadQueue.size ());
+	while (!m_MyDictionary->SourceLoadQueue.empty ()) {
+		filePaths.push_back (std::move (m_MyDictionary->SourceLoadQueue.front ()));
+		m_MyDictionary->SourceLoadQueue.pop ();
+	};
+
+	std::thread dict_add (
+		[](SymSpell_Dictionary *dictionary, std::vector<std::string> filePaths) {
+
+			for (uint32_t i = filePaths.size () - 1; i >= 0; i--)
+				for (std::string &strs : dictionary->Sources)
+					if (filePaths[i] == strs) filePaths.erase (filePaths.begin () + i);
+			if (filePaths.empty ()) return;
+
+			dictionary->Lock = true;
+			for (std::string &filePath : filePaths) {
+				if (dictionary->symspell.LoadDictionary (filePath.c_str (), 0, 1, XL (' ')))
+					dictionary->Sources.push_back (filePath), Text_Object::SetSignal ("Extended Dictionary");
+				else Text_Object::SetSignal ("Dictionary(s) failed to load");
+			}
+			dictionary->Lock = false;
+
+		}, m_MyDictionary, std::move (filePaths));
+	dict_add.detach ();
 }
 
 void Text_Object::ResizeBuffer (uint32_t new_size)
@@ -76,6 +99,7 @@ void Text_Object::ImGuiTextRender (bool nav_suggestions_with_ctrl)
 	if (ImGui::IsWindowFocused () && s_FocusedTextObject != this) {
 		new_MVC_Layer::Defocus_Text_object ();
 		s_FocusedTextObject = this;
+		s_LastFocusedTextObject = s_FocusedTextObject;
 	}
 
 	if (m_ResetFocus)
@@ -118,7 +142,8 @@ int Text_Object::text_input_callback (ImGuiInputTextCallbackData *data)
 {
 	if(s_FocusedTextObject != (Text_Object *)data->UserData) {
 		new_MVC_Layer::Defocus_Text_object ();
-		s_FocusedTextObject = s_FocusedTextObject;
+		s_FocusedTextObject = (Text_Object *)data->UserData;
+		s_LastFocusedTextObject = s_FocusedTextObject;
 	}
 	switch (data->EventFlag) {
 		case ImGuiInputTextFlags_CallbackCompletion:

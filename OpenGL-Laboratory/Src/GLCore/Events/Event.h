@@ -14,7 +14,7 @@ namespace GLCore {
 	{
 		None = 0,
 		WindowClose, WindowResize, WindowFocus, WindowLostFocus, WindowMoved,
-		AppTick, AppUpdate, AppRender,
+		AppTick, AppUpdate, AppRender, FileDrop,
 		KeyPressed, KeyReleased, KeyTyped,
 		MouseButtonPressed, MouseButtonReleased, MouseMoved, MouseScrolled
 	};

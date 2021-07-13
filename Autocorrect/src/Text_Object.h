@@ -9,10 +9,7 @@
 class ImGuiInputTextCallbackData;
 class Text_Object
 {
-private:
 public:
-	static std::optional<Text_Object> OpenFileAsText (const char *filePath /*= ""*/);
-
 	Text_Object (const Text_Object &other)
 		: m_FilePath (other.m_FilePath), m_Buffer_Size (other.m_Buffer_Size)
 	{
@@ -57,11 +54,13 @@ public:
 	void ImGuiTextRender (bool suggestion_nav_with_ctrl);
 	void OnUpdate ();
 	void OnEvent (char event);
+	void QueueDictExtensionSrcs (std::vector<std::string_view> filePaths_view);
 private:
 	void ResizeBuffer (uint32_t new_size);
 public:
 	static int text_input_callback(ImGuiInputTextCallbackData *data);
 	static Text_Object *s_FocusedTextObject;
+	static Text_Object *s_LastFocusedTextObject;
 
 	static char *s_SignalHint; // If not null, shows what type of operation is just performed on Focused Text Object
 	static float s_SignalPersists_for; // amount of duration MORE the signal will persist before being cleared or overridden.

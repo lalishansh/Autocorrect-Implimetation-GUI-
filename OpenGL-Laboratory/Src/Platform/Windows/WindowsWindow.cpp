@@ -151,6 +151,14 @@ namespace GLCore {
 			MouseMovedEvent event((float)xPos, (float)yPos);
 			data.EventCallback(event);
 		});
+
+		glfwSetDropCallback(m_Window, [](GLFWwindow* window, int count, const char** sources)
+		{
+			WindowData& data = *(WindowData*)glfwGetWindowUserPointer(window);
+
+			FileDropEvent event(uint32_t(count), sources);
+			data.EventCallback(event);
+		});
 	}
 
 	void WindowsWindow::Shutdown()
