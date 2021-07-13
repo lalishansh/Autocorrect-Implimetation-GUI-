@@ -4,7 +4,7 @@
 #include "SymSpell/include/SymSpell.h"
 #include <future>
 #include <optional>
-#include "Settings_editor_methods.h"
+#include "Commons.h"
 
 class ImGuiInputTextCallbackData;
 class Text_Object
@@ -84,11 +84,10 @@ private:
 	std::string_view m_TargetWord = std::string_view(" ", 1); // directly extracted from call-back
 
 	// SymSpell
-	SymSpell *m_Symspell = nullptr;
-	std::vector<std::string> *m_LoadedDictionaries = nullptr;
+	SymSpell_Dictionary *m_MyDictionary = nullptr;
 	
 	//// results
-	std::vector<SuggestItem> *m_SuggestionsRef = nullptr; // will be used for output
+	std::vector<SuggestItem> *m_SuggestionsRef = &m_Suggestions; // will be used for output
 	std::future<std::vector<SuggestItem>> m_Suggestions_future = std::async (std::launch::deferred, 
 																	  []() {
 																		  return std::vector<SuggestItem> ();
@@ -98,7 +97,6 @@ private:
 	std::string m_FilePath;
 public:
 	const char* m_FileName;
-	const bool m_Locked_Dictionary = false;
 private:
 	friend class new_MVC_Layer;
 	friend bool ChangeUnifiedDictionaryState (const bool, new_MVC_Layer &);

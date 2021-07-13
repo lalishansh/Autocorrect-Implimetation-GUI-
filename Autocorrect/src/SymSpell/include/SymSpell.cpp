@@ -638,8 +638,8 @@ vector<SuggestItem> SymSpell::Lookup(xstring input, Verbosity verbosity, int max
 /// <param name="verbosity">The value controlling the quantity/closeness of the retuned suggestions.</param>
 /// <param name="maxEditDistance">The maximum edit distance between input and suggested words.</param>
 /// <param name="includeUnknown">Include input word in suggestions, if no words within edit distance found.</param>																													   
-/// <param name="instant_access_to_suggestions">NOTE: will be turned nullptr the moment function returns, 
-/// reference to a pointer pointing to suggestions being worked upon in real-time </param>																													   
+/// <param name="instant_access_to_suggestions">reference to a pointer pointing to suggestions being worked upon in real-time
+/// recommended to pass pointer to nullptr </param>																													   
 /// <param name="safe_cancel_signal">NOTE: will be turned false the moment function returns, 
 /// pointer to bool, when turns true Lookup is safely canceled.</param>																													   
 /// <returns>A List of SuggestItem object representing suggested correct spellings for the input word, 
@@ -656,7 +656,9 @@ std::vector<SuggestItem> SymSpell::Lookup (xstring input, Verbosity verbosity, i
 	if (maxEditDistance > this->maxDictionaryEditDistance) throw std::invalid_argument("maxEditDistance");
 
 	vector<SuggestItem> suggestions;
-	*instant_access_to_suggestions = &suggestions;
+	if(instant_access_to_suggestions)
+		*instant_access_to_suggestions = &suggestions;
+
 	bool cancel_operation = *safe_cancel_signal;
 	if (cancel_operation) goto END_OF_OPERATION;
 
@@ -865,7 +867,6 @@ END_OF_OPERATION:
 	if (cancel_operation) {
 		suggestions.clear ();
 	}
-	*instant_access_to_suggestions = nullptr; // clear
 	return suggestions;
 }
 

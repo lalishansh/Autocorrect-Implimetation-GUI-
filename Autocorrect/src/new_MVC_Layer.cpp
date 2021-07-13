@@ -7,8 +7,10 @@
 #include "SymSpell/include/SymSpell.h"
 #include "imgui/imgui.h"
 #include <thread>
+//#include <Windows.h>
 
-
+// TODO Have you seen m_Dictionary.push_back, it a good candidate to break code.
+// FIX IT
 
 using namespace GLCore;
 using namespace GLCore::Utils;
@@ -21,11 +23,8 @@ new_MVC_Layer::_Settings new_MVC_Layer::s_Settings_temp = {};
 
 new_MVC_Layer::new_MVC_Layer (int argc, char *argv[])
 {
-	{
-		SymSpell tmp1 (1, 3, 4);
-		std::vector<std::string> tmp2;
-		m_Dictionaries.push_back ({ tmp1, tmp2 });
-	}
+	m_Dictionaries.push_back ({});
+	
 	if (argc > 1) { // received input
 
 		for (uint32_t i = 1; i < argc; i++) {
@@ -52,7 +51,8 @@ void new_MVC_Layer::OnEvent(Event& event)
 	EventDispatcher dispatcher(event);
 	dispatcher.Dispatch<KeyReleasedEvent> (
 		[&](KeyReleasedEvent &event) -> bool {
-			bool ctrl = Input::IsKeyPressed (HZ_KEY_RIGHT_CONTROL) || Input::IsKeyPressed (HZ_KEY_LEFT_CONTROL);
+			bool ctrl  = Input::IsKeyPressed (HZ_KEY_RIGHT_CONTROL) || Input::IsKeyPressed (HZ_KEY_LEFT_CONTROL);
+			bool shift = Input::IsKeyPressed (HZ_KEY_RIGHT_SHIFT) || Input::IsKeyPressed (HZ_KEY_LEFT_SHIFT);
 			
 			if (Text_Object::s_FocusedTextObject && 
 				(s_Settings_Global.UseCtrlForSuggestionNav ? ctrl : !ctrl)) 
@@ -69,7 +69,7 @@ void new_MVC_Layer::OnEvent(Event& event)
 					OpenFileAsText (GLCore::Utils::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0*.*\0").c_str ());
 				}
 				if (Text_Object::s_FocusedTextObject != nullptr) {
-					if (event.GetKeyCode () == HZ_KEY_A)
+					if (event.GetKeyCode () == HZ_KEY_A && shift)
 						Extending_Dictionary_of (Text_Object::s_FocusedTextObject);
 
 					else if (event.GetKeyCode () == HZ_KEY_S)
@@ -130,8 +130,8 @@ void new_MVC_Layer::OnImGuiRender()
 
 		// Important: note that we proceed even if Begin() return false (i.e window is collapsed).
 		// This is because we want to keep our DockSpace() active. If a DockSpace is inactive,
-		// all active windows docked into it will lose their parent and become undocked.
-		// any change of dockspce/settings would lead towindows being stuck in limbo and never being visible.
+		// all active windows docked into it will lose their parent and become un-docked.
+		// any change of dock-space/settings would lead to windows being stuck in limbo and never being visible.
 		ImGui::PushStyleVar (ImGuiStyleVar_WindowPadding, ImVec2 (0.0f, 0.0f));
 		ImGui::Begin ("Main DockSpace", &dockspaceOpen, windowFlags);
 		ImGui::PopStyleVar ();
@@ -187,30 +187,40 @@ void new_MVC_Layer::OnImGuiRender()
 
 void new_MVC_Layer::Extending_Dictionary_of (Text_Object *object)
 {
-	if (!object->m_Locked_Dictionary) {
+	if (!object->m_MyDictionary->Lock) {
 		
 		std::string filePath = GLCore::Utils::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0");
 		if (filePath.empty ()) return;
 
 		std::thread dict_add (
-			[&](Text_Object *object, std::string filePath) {
-			*(bool *)((void *)&object->m_Locked_Dictionary) = true;
-			bool unique = true;
+			[](SymSpell_Dictionary *dictionary, std::string filePath) {
+				dictionary->Lock = true;
+				bool unique = true;
 
-			for (std::string &strs : *object->m_LoadedDictionaries)
-				if (strs == filePath) {
-					unique = false; break;
+				for (std::string &strs : dictionary->Sources)
+					if (strs == filePath) {
+						unique = false; break;
+					}
+
+				if (unique) {
+					if (dictionary->symspell.LoadDictionary (filePath.c_str (), 0, 1, XL (' ')))
+						dictionary->Sources.push_back (filePath), Text_Object::SetSignal ("Extended Dictionary");
+					else Text_Object::SetSignal ("Dictionary already loaded");
 				}
 
-			if (unique) {
-				if (object->m_Symspell->LoadDictionary (filePath.c_str (), 0, 1, XL (' ')))
-					object->m_LoadedDictionaries->push_back (filePath), Text_Object::SetSignal ("Extended Dictionary");
-				else Text_Object::SetSignal ("Failed To Load Dictionary");
-			}
-			
-			*(bool *)((void *)&object->m_Locked_Dictionary) = false;
-		}, object, std::move(filePath));
+				dictionary->Lock = false;
+			}, object->m_MyDictionary, std::move (filePath));
 		dict_add.detach ();
+
+		//std::thread test_add (
+		//	[]() {
+		//		while (true)
+		//		{
+		//			std::cout << "\nAlive ID: " << this_thread::get_id ();
+		//			Sleep (200);
+		//		}
+		//	});
+		//test_add.detach ();
 
 	} else Text_Object::SetSignal ("Dictionary inaccessible");
 }
@@ -239,7 +249,7 @@ void new_MVC_Layer::MenuBarItems ()
 
 			if (ImGui::BeginMenu ("Loaded Dictionary")) {
 
-				for (std::string &dict_path : *Text_Object::s_FocusedTextObject->m_LoadedDictionaries)
+				for (std::string &dict_path : Text_Object::s_FocusedTextObject->m_MyDictionary->Sources)
 					ImGui::MenuItem (dict_path.c_str ());
 				
 				ImGui::EndMenu ();
@@ -273,6 +283,7 @@ void new_MVC_Layer::ImGuiRenderDockables ()
 void new_MVC_Layer::Save_settings ()
 {
 	if (s_Settings_changed) {
+		s_Settings_changed = false;
 		/*############################
 		### Check & Apply Settings */
 		// For unified dictionary
@@ -291,7 +302,6 @@ void new_MVC_Layer::Save_settings ()
 			s_Settings_Global.autosave_every_in_seconds  = s_Settings_temp.autosave_every_in_seconds;
 		}
 
-		s_Settings_changed = false;
 	}
 }
 void new_MVC_Layer::Discard_settings_changes ()
@@ -314,7 +324,7 @@ void new_MVC_Layer::OpenFileAsText (const char *filePath /*= ""*/)
 		{
 			uint32_t i = 0;
 			for (auto &obj: m_TextFileObjects) {
-				save_state[i] = uint32_t(obj.m_Symspell - &m_Dictionaries[0].first);
+				save_state[i] = uint32_t(obj.m_MyDictionary - &m_Dictionaries[0]);
 				i++;
 			}
 		}
@@ -323,16 +333,11 @@ void new_MVC_Layer::OpenFileAsText (const char *filePath /*= ""*/)
 		if (s_Settings_Global.UnifiedDictionary || m_TextFileObjects.size () == 1) {
 			save_state[m_TextFileObjects.size () - 1] = 0;
 		} else { // not unified
-			{
-				SymSpell tmp1 (1, symspell_Max_Edit_Distance, symspell_Prefix_length
-				);
-				std::vector<std::string> tmp2;
-				m_Dictionaries.push_back ({tmp1, tmp2});
-			}
-			save_state[m_TextFileObjects.size () - 1] = m_Dictionaries.size ()-1;
+			m_Dictionaries.push_back ({});
+			save_state[m_TextFileObjects.size () - 1] = m_Dictionaries.size () - 1;
 		}
 		for (uint32_t i = 0; i < m_TextFileObjects.size (); i++)
-			m_TextFileObjects[i].m_Symspell = &m_Dictionaries[save_state[i]].first, m_TextFileObjects[i].m_LoadedDictionaries = &m_Dictionaries[save_state[i]].second;
+			m_TextFileObjects[i].m_MyDictionary = &m_Dictionaries[save_state[i]];
 		
 		delete[] save_state;
 		Text_Object::SetSignal ("Opened File");
@@ -346,7 +351,7 @@ void new_MVC_Layer::NewUnTitledTextObject ()
 		{
 			uint32_t i = 0;
 			for (auto &obj: m_TextFileObjects) {
-				save_state[i] = uint32_t(obj.m_Symspell - &m_Dictionaries[0].first);
+				save_state[i] = uint32_t(obj.m_MyDictionary - &m_Dictionaries[0]);
 				i++;
 			}
 		}
@@ -355,16 +360,11 @@ void new_MVC_Layer::NewUnTitledTextObject ()
 		if (s_Settings_Global.UnifiedDictionary || m_TextFileObjects.size () == 1) {
 			save_state[m_TextFileObjects.size () - 1] = 0;
 		} else { // not unified
-			{
-				SymSpell tmp1 (1, symspell_Max_Edit_Distance, symspell_Prefix_length
-				);
-				std::vector<std::string> tmp2;
-				m_Dictionaries.push_back ({tmp1, tmp2});
-			}
-			save_state[m_TextFileObjects.size () - 1] = m_Dictionaries.size ()-1;
+			m_Dictionaries.push_back ({});
+			save_state[m_TextFileObjects.size () - 1] = m_Dictionaries.size () - 1;
 		}
 		for (uint32_t i = 0; i < m_TextFileObjects.size (); i++)
-			m_TextFileObjects[i].m_Symspell = &m_Dictionaries[save_state[i]].first, m_TextFileObjects[i].m_LoadedDictionaries = &m_Dictionaries[save_state[i]].second;
+			m_TextFileObjects[i].m_MyDictionary = &m_Dictionaries[save_state[i]];
 		
 		delete[] save_state;
 		Text_Object::SetSignal ("New Unsaved File");
@@ -375,14 +375,16 @@ void new_MVC_Layer::Defocus_Text_object ()
 {
 	if (Text_Object::s_FocusedTextObject != nullptr) {
 
-		// AutoSave
-		Text_Object::s_FocusedTextObject->OnEvent ('S');
-		on_update_autosave_timer = 0.0f;
-
 		// Other Operations like auto-saving
 
+		// AutoSave
+		if (s_Settings_Global.autosave_enabled) {
+			Text_Object::s_FocusedTextObject->OnEvent ('S');
+			on_update_autosave_timer = 0.0f;
+		}
+
 		Text_Object::s_FocusedTextObject = nullptr;
-		LOG_TRACE ("De-Focused");
+		// LOG_TRACE ("De-Focused");
 	}
 }
 

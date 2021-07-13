@@ -4,7 +4,7 @@
 #include <GLCoreUtils.h>
 #include <imgui/imgui.h>
 #include <filesystem>
-#include "Settings_editor_methods.h"
+#include "Commons.h"
 
 class Text_Object;
 class SymSpell;
@@ -42,7 +42,8 @@ private:
 	ImGuiID m_DockspaceID;
 	ImGuiStyle myStyle;
 	std::vector<Text_Object> m_TextFileObjects;
-	std::vector<std::pair<SymSpell, std::vector<std::string>>> m_Dictionaries;
+
+	std::vector<SymSpell_Dictionary> m_Dictionaries;
 	// std::vector<std::string> m_FileHistory; // every-time any file is opened, History updates and then immediately saved on disk
 	static const char *s_AppDataLocation;
 
