@@ -268,8 +268,7 @@ bool SymSpell::LoadBigramDictionary(xifstream& corpusStream, int termIndex, int 
 bool SymSpell::LoadDictionary(string corpus, int termIndex, int countIndex, xchar separatorChars)
 {
 	std::cout << "Adding Dictionary: " << corpus << "\n";
-
-
+	
 	xifstream corpusStream(corpus);
 	/*corpusStream.open(corpus);*/
 #ifdef UNICODE_SUPPORT
@@ -321,7 +320,7 @@ bool SymSpell::LoadDictionary(xifstream& corpusStream, int termIndex, int countI
 		}
 
 		i++;
-		if (i % skip_amount == 0) {
+		if (i % skip_amount == 0) { // cout is very expensive
 			int end_prev = end;
 			end = clock ();
 			skip_amount = MAX(3000/(end - end_prev), 20);
@@ -342,6 +341,84 @@ bool SymSpell::LoadDictionary(xifstream& corpusStream, int termIndex, int countI
 	std::cout << "\nTotal Time took: " << (float)((end - start)*1000 / (CLOCKS_PER_SEC))/1000 << "s\n";
 
 	if (this->EntryCount() == 0)
+		return false;
+	return true;
+}
+
+/// <summary>Load multiple dictionary entries from a file of word/frequency count pairs</summary>
+/// <remarks>Merges with any dictionary data already loaded.</remarks>
+/// <param name="corpus">The path+filename of the file.</param>
+/// <param name="termIndex">The column position of the word.</param>
+/// <param name="countIndex">The column position of the frequency count.</param>
+/// <param name="separatorChars">Separator characters between term(s) and count.</param>
+/// <param name="progress_amount">area to store counter about amount of region progressed</param>
+/// <param name="max_progress_amount">quantitative measurment of region amounts to</param>
+/// <param name="progress_contribution_min">start of regions influence on progress</param>
+/// <param name="progress_contribution_max">end of regions influence on progress</param>
+/// <returns>True if file loaded, or false if file not found.</returns>
+bool SymSpell::LoadDictionaryWithPB (string corpus, int termIndex, int countIndex, xchar separatorChars, uint32_t *progress_amount, uint32_t *max_progress_amount, float *progress_contribution_min, float *progress_contribution_max)
+{
+	*progress_amount = 0;
+	*max_progress_amount = 1;
+	*progress_contribution_min = 0.0f;
+	*progress_contribution_max = 0.02f;
+	 //// 2 % region
+		xifstream corpusStream (corpus);
+		/*corpusStream.open(corpus);*/
+	#ifdef UNICODE_SUPPORT
+		locale utf8 (locale (), new codecvt_utf8<wchar_t>);
+		corpusStream.imbue (utf8);
+	#endif
+		if (!corpusStream.is_open ())
+			return false;
+	////////////
+	*progress_amount = 1;
+
+	return LoadDictionaryWithPB (corpusStream, termIndex, countIndex, separatorChars, progress_amount, max_progress_amount, progress_contribution_min, progress_contribution_max);
+}
+
+bool SymSpell::LoadDictionaryWithPB (xifstream &corpusStream, int termIndex, int countIndex, xchar separatorChars, uint32_t *progress_amount, uint32_t *max_progress_amount, float *progress_contribution_min, float *progress_contribution_max)
+{
+	*progress_amount = 0, *max_progress_amount = 1, *progress_contribution_min = 0.02f, *progress_contribution_max = 0.02f;
+	{uint32_t tmp; // 2 % region
+	{
+		corpusStream.seekg (0, std::ios::end);
+		tmp = corpusStream.tellg ();
+		corpusStream.seekg (0, std::ios::beg);
+	}
+	*progress_contribution_min = 0.04f, *progress_contribution_max = 0.92f, *max_progress_amount = tmp;}
+	{ // 87 % region
+		SuggestionStage staging (16384);
+		xstring line;
+
+		//process a single line at a time only for memory efficiency
+		while (getline (corpusStream, line)) {
+			*progress_amount = corpusStream.tellg () != -1 ? corpusStream.tellg () : *progress_amount;
+
+			vector<xstring> lineParts;
+			xstringstream ss (line);
+			xstring token;
+			//start = clock();
+			while (getline (ss, token, separatorChars))
+				lineParts.push_back (token);
+
+			if (lineParts.size () >= 2) {
+				int64_t count = stoll (lineParts[countIndex]);
+
+				CreateDictionaryEntry (lineParts[termIndex], count, &staging);
+			} else {
+				CreateDictionaryEntry (line, 1, &staging);
+			}
+		}
+	}
+	*progress_contribution_min = 0.93f, *progress_contribution_max = 1.0f, *progress_amount = 0, *max_progress_amount = 1;
+	{// 8 % region
+		if (this->deletes == NULL)
+			this->deletes = new Dictionary<int, vector<xstring>> (staging.DeleteCount ());
+		CommitStaged (&staging);
+		*progress_amount = 1;
+	}
+	if (this->EntryCount () == 0)
 		return false;
 	return true;
 }

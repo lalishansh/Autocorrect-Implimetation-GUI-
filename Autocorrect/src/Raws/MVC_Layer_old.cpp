@@ -1,4 +1,4 @@
-#include "MVC_Layer.h"
+#include "MVC_Layer_old.h"
 #include <glm/glm.hpp>
 
 #include "GLCore/Core/Input.h"
@@ -103,36 +103,36 @@ std::string g_LastWordFromCharBuffer;
 bool g_SelectSuggestion = false;
 //std::thread g_WorkerThread;
 
-bool MVC_Layer::s_TextBoxSelected = false;
-bool MVC_Layer::s_ShowAllLoadedDictionaries = false;
-bool MVC_Layer::s_ResetFocusOnTextbox = true;
-ImGuiID MVC_Layer::s_DockspaceID = 0;
-MVC_Layer::MVC_Layer()
+bool MVC_Layer_old::s_TextBoxSelected = false;
+bool MVC_Layer_old::s_ShowAllLoadedDictionaries = false;
+bool MVC_Layer_old::s_ResetFocusOnTextbox = true;
+ImGuiID MVC_Layer_old::s_DockspaceID = 0;
+MVC_Layer_old::MVC_Layer_old()
 {
 	g_ResizeableCharBuffer.Resize (1024);
 
 	//LoadADictionary("assets/dictionary/frequency_dictionary_en_1000.txt");
 }
 
-MVC_Layer::~MVC_Layer()
+MVC_Layer_old::~MVC_Layer_old()
 {
 }
 
-void MVC_Layer::OnAttach()
+void MVC_Layer_old::OnAttach()
 {
 	// EnableGLDebugging();
 }
 
-void MVC_Layer::OnDetach()
+void MVC_Layer_old::OnDetach()
 {}
 
-void MVC_Layer::OnEvent(Event& event)
+void MVC_Layer_old::OnEvent(Event& event)
 {
 	EventDispatcher dispatcher(event);
 	dispatcher.Dispatch<KeyPressedEvent>(
 		[&](KeyPressedEvent& e)
 		{
-			if (MVC_Layer::s_TextBoxSelected) {
+			if (MVC_Layer_old::s_TextBoxSelected) {
 				if ((Input::IsKeyPressed (HZ_KEY_RIGHT_CONTROL) || Input::IsKeyPressed (HZ_KEY_LEFT_CONTROL)) &&
 					!(Input::IsKeyPressed (HZ_KEY_RIGHT_SHIFT) || Input::IsKeyPressed (HZ_KEY_LEFT_SHIFT)) &&
 					e.GetKeyCode () == HZ_KEY_UP) {
@@ -164,7 +164,7 @@ void MVC_Layer::OnEvent(Event& event)
 		});
 }
 
-std::string MVC_Layer::ExtractLastWordFromTextBuffer()
+std::string MVC_Layer_old::ExtractLastWordFromTextBuffer()
 {
 	uint16_t lastWordEnd = g_ResizeableCharBuffer.LastWordEndIndex ();
 	if (lastWordEnd < g_ResizeableCharBuffer.Size() - 1) {
@@ -178,10 +178,10 @@ std::string MVC_Layer::ExtractLastWordFromTextBuffer()
 		return lastWord;
 	}
 }
-void MVC_Layer::OnUpdate (Timestep ts)
+void MVC_Layer_old::OnUpdate (Timestep ts)
 {}
 
-void MVC_Layer::OnImGuiRender()
+void MVC_Layer_old::OnImGuiRender()
 {
 	{// DockSpace
 
@@ -255,7 +255,7 @@ void MVC_Layer::OnImGuiRender()
 		ImGui::End ();
 	}
 }
-void MVC_Layer::MenuBarItems ()
+void MVC_Layer_old::MenuBarItems ()
 {
 	if (ImGui::BeginMenu ("File")) {
 	
@@ -267,13 +267,13 @@ void MVC_Layer::MenuBarItems ()
 		ImGui::EndMenu ();
 	}
 }
-void MVC_Layer::ImGuiRenderDockables ()
+void MVC_Layer_old::ImGuiRenderDockables ()
 {
 	ImGui::ShowDemoWindow();
 
 	ImGui::SetNextWindowDockID (s_DockspaceID);
 	ImGui::Begin ("Text::Area", NULL);
-	MVC_Layer::s_TextBoxSelected = false;
+	MVC_Layer_old::s_TextBoxSelected = false;
 	ImVec2 DrawingTextHere = ImGui::GetCursorPos ();
 	if (s_ResetFocusOnTextbox)
 	{
@@ -285,7 +285,7 @@ void MVC_Layer::ImGuiRenderDockables ()
 			{
 				if (data->EventFlag == ImGuiInputTextFlags_CallbackAlways) {
 					LOG_TRACE ("cursor_pos {0}", data->CursorPos);
-					MVC_Layer::s_TextBoxSelected = true;
+					MVC_Layer_old::s_TextBoxSelected = true;
 				}
 				if (g_SelectSuggestion)
 				{
@@ -395,7 +395,7 @@ void MVC_Layer::ImGuiRenderDockables ()
 		ImGui::End ();
 	}
 }
-void MVC_Layer::LoadADictionary ()
+void MVC_Layer_old::LoadADictionary ()
 {
 	std::string filePath = GLCore::Utils::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0");
 	if (!filePath.empty ()) {
@@ -407,7 +407,7 @@ void MVC_Layer::LoadADictionary ()
 		g_LoadedDictionaryLocation.push_back (filePath);
 	}
 }
-void MVC_Layer::LoadADictionary (std::string filePath)
+void MVC_Layer_old::LoadADictionary (std::string filePath)
 {
 	if (!filePath.empty ()) {
 		int start = clock ();
@@ -418,7 +418,7 @@ void MVC_Layer::LoadADictionary (std::string filePath)
 		g_LoadedDictionaryLocation.push_back (filePath);
 	}
 }
-void MVC_Layer::LookupWordInDictionary (std::string &word)
+void MVC_Layer_old::LookupWordInDictionary (std::string &word)
 {
 	if (!g_LoadedDictionaryLocation.empty()) {
 		//int start = clock ();

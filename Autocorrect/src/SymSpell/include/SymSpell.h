@@ -225,6 +225,20 @@ public:
 	/// <returns>True if stream loads.</returns>
 	bool LoadDictionary(xifstream& corpusStream, int termIndex, int countIndex, xchar separatorChars = DEFAULT_SEPARATOR_CHAR);
 
+	/// <summary>Load multiple dictionary entries from a file of word/frequency count pairs</summary>
+	/// <remarks>Merges with any dictionary data already loaded.</remarks>
+	/// <param name="corpus">The path+filename of the file.</param>
+	/// <param name="termIndex">The column position of the word.</param>
+	/// <param name="countIndex">The column position of the frequency count.</param>
+	/// <param name="separatorChars">Separator characters between term(s) and count.</param>
+	/// <param name="progress_amount">area to store counter about amount of region progressed</param>
+	/// <param name="max_progress_amount">quantitative measurment of region amounts to</param>
+	/// <param name="progress_contribution_min">start of regions influence on progress</param>
+	/// <param name="progress_contribution_max">end of regions influence on progress</param>
+	/// <returns>True if file loaded, or false if file not found.</returns>
+	bool LoadDictionaryWithPB (string corpus, int termIndex, int countIndex, xchar separatorChars, uint32_t *progress_amount, uint32_t *max_progress_amount, float *progress_contribution_min, float *progress_contribution_max);
+	bool LoadDictionaryWithPB (xifstream &corpusStream, int termIndex, int countIndex, xchar separatorChars, uint32_t *progress_amount, uint32_t *max_progress_amount, float *progress_contribution_min, float *progress_contribution_max);
+	
 	/// <summary>Load multiple dictionary words from a file containing plain text.</summary>
 	/// <remarks>Merges with any dictionary data already loaded.</remarks>
 	/// <param name="corpus">The path+filename of the file.</param>

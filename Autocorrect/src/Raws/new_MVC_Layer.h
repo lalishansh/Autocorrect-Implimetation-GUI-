@@ -73,6 +73,6 @@ private:
 
 	static bool s_Settings_changed;
 private:
-	// settings manuplator
+	// settings manipulator
 	friend bool ChangeUnifiedDictionaryState (const bool, new_MVC_Layer &);
 };
