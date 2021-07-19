@@ -44,6 +44,9 @@ private: // Resource
 
 	bool m_SettingsWindowOpen = false;
 	bool m_SettingsChanged = false;
+
+	float m_FontGlobalScale;
+	ImGuiStyle m_MyImGuiStyle;
 	struct _Settings
 	{
 		bool _unified_dictionary      = true;
@@ -56,6 +59,8 @@ private: // Resource
 		
 		float _signal_hint_max_persist_durn = 4.0f; // duration in seconds
 		float _window_opacity = 0.9f; // duration in seconds
+
+		float _window_scale = 1.0f;
 
 		std::vector<std::string> AllowedExtensions;
 	};
@@ -106,3 +111,15 @@ public:
 	static void DestroyDictionary (void *_dict_location, void *dummy, uint8_t *options_data, bool is_valid_signal);
 	static void LazyDestroyDictionary (void *_dict_location, void *dummy1, uint8_t *dummy2, bool signal_is_valid);
 };
+template<typename... Args>
+void HelpMarker (const char* identifier, const char *desc, Args&&...args)
+{
+	ImGui::TextDisabled (identifier);
+	if (ImGui::IsItemHovered ()) {
+		ImGui::BeginTooltip ();
+		ImGui::PushTextWrapPos (ImGui::GetFontSize () * 35.0f);
+		ImGui::Text (desc, std::forward<Args>(args)...);
+		ImGui::PopTextWrapPos ();
+		ImGui::EndTooltip ();
+	}
+}

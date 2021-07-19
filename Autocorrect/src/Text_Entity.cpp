@@ -94,7 +94,7 @@ int Text_Entity::text_input_callback (ImGuiInputTextCallbackData *data)
 		data->DeleteChars (replace_At, size);
 		data->InsertChars (replace_At, word.c_str ());
 
-		txt_entity.m_TargetWord = std::string_view (&data->Buf[replace_At], word.size ());
+		txt_entity.m_TargetWord = std::string_view ("");
 
 		txt_entity.m_FinalSuggestions.clear ();
 		data->CursorPos = replace_At + word.size () + 1;
@@ -104,31 +104,35 @@ int Text_Entity::text_input_callback (ImGuiInputTextCallbackData *data)
 	
 	uint32_t cursor_posn = data->CursorPos;
 	bool check = txt_entity.m_TargetWord.empty ();
+
 	if (!check) {
-		check = ((cursor_posn - uint32_t (&txt_entity.m_TargetWord[0] - &data->Buf[0])) > (txt_entity.m_TargetWord.size () - 1));
+		check = (uint32_t(cursor_posn - int (&txt_entity.m_TargetWord[0] - &data->Buf[0])) > (txt_entity.m_TargetWord.size () - 1));
 	}
 	if(check){
-		if (data->Buf[cursor_posn] != ' ' && data->Buf[cursor_posn] != '\0' && data->Buf[cursor_posn] != '\n' && data->Buf[cursor_posn] != '\r') {
-			uint8_t left = 0;
+		if ((data->Buf[cursor_posn] >= 'a' && data->Buf[cursor_posn] <= 'z') || (data->Buf[cursor_posn] >= 'A' && data->Buf[cursor_posn] <= 'Z')) {
+			uint8_t left = 1;
 			uint8_t right = 0;
-			while (data->Buf[cursor_posn - left] != ' ' && data->Buf[cursor_posn - left] != '\n') {
-				left++;
-				if (cursor_posn < left) { left++; break; }
-			}
-			while (data->Buf[cursor_posn + right] != ' ' && data->Buf[cursor_posn + right] != '\0' && data->Buf[cursor_posn + right] != '\n' && data->Buf[cursor_posn + right] != '\r')
+			if (cursor_posn > 0) {
+				while ((data->Buf[cursor_posn - left] >= 'a' && data->Buf[cursor_posn - left] <= 'z') || (data->Buf[cursor_posn - left] >= 'A' && data->Buf[cursor_posn - left] <= 'Z')) {
+					if (cursor_posn - left >= 0) { left++; break; }
+					left++;
+				}
+				left--;
+			} else left = 0;
+			while ((data->Buf[cursor_posn + right] >= 'a' && data->Buf[cursor_posn + right] <= 'z') || (data->Buf[cursor_posn + right] >= 'A' && data->Buf[cursor_posn + right] <= 'Z')) {
+				if (cursor_posn + right == data->BufTextLen) break; // won't reach here
 				right++;
+			}
 
-			uint32_t size = (left - 1) + right;
-			std::string_view candidate_word (&data->Buf[cursor_posn - left + 1], size);
+			uint32_t size = left + right;
+			std::string_view candidate_word (&data->Buf[cursor_posn - left], size);
 			if (txt_entity.m_TargetWord != candidate_word) {
 				txt_entity.m_TargetWord = candidate_word;
 				if (size >= Manager_Layer::Get ()->MinimumWordLengthToInvokeLookup ())
 					txt_entity.m_RestartLookup = true;// , LOG_TRACE ("Restart Lookup");
-				else
-					txt_entity.m_FinalSuggestions.clear (), txt_entity.m_SelectSuggestionIDX = 0;
+				txt_entity.m_SelectSuggestionIDX = 0;
 			}
-		} else
-			txt_entity.m_TargetWord = std::string_view (&data->Buf[cursor_posn + 1], 1), txt_entity.m_FinalSuggestions.clear ();
+		}
 	}
 	return 0;
 }
@@ -167,7 +171,7 @@ void Text_Entity::OnImGuiRender ()
 			m_SuggestionsRTS = &m_FinalSuggestions;
 		}
 
-	if (m_SuggestionsRTS->size () > 1 && Manager_Layer::IsFocused (this)) {
+	if (m_SuggestionsRTS->size () > 1 && Manager_Layer::IsFocused (this) && m_TargetWord.size () >= Manager_Layer::Get ()->MinimumWordLengthToInvokeLookup ()) {
 		ImVec2 suggestionsDrawPosn = ImGui::GetCurrentContext ()->PlatformImeLastPos;
 		suggestionsDrawPosn.y += 15;
 		ImGui::SetNextWindowPos (suggestionsDrawPosn);

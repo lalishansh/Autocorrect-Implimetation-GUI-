@@ -40,7 +40,7 @@ std::optional<std::string> AbsoluteDirectoryPath (std::string orignal)
 }
 std::string CreateNewFile (std::string orignal /*= std::string()*/)
 {
-	uint32_t idx = orignal.size () - 1;
+	uint32_t idx = MAX(orignal.size () - 1, 0);
 	while (orignal[idx] != '.' && orignal[idx] != '\\' && idx > 0)
 		idx--;
 	if (orignal[idx] != '.')
