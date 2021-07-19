@@ -16,6 +16,7 @@ public:
 
 	void OnUpdate ();
 	void OnImGuiRender ();
+	void StateReset ();
 	void OnEvent (char);
 private:
 	static bool s_IsAnyTextInputFocused;

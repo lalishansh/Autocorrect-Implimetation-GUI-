@@ -44,7 +44,7 @@ void Manager_Layer::OnEvent (GLCore::Event &event)
 				std::string tmp = Utils::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0*.*\0");
 				LoadTextFileToEntity (std::move(tmp));
 			}
-			else if (!m_FocusStack.empty () && (m_Settings_main._use_ctrl_for_suggestion_nav == ctrl)) {
+			else if (!m_FocusStack.empty () && ctrl) {
 				if (ctrl && shift && e.GetKeyCode () == HZ_KEY_A) {
 					std::string tmp = Utils::FileDialogs::OpenFile ("all files (*.*)\0*.txt\0*.*\0");
 					ExtendDictionaryOf (*(m_TextEntities[m_FocusStack.back ()].MyDictionary ()), tmp);
@@ -56,7 +56,8 @@ void Manager_Layer::OnEvent (GLCore::Event &event)
 		});
 	dispatcher.Dispatch<KeyPressedEvent> (
 		[&](KeyPressedEvent &e) {
-			if (!m_FocusStack.empty ()) {
+			bool ctrl = Input::IsKeyPressed (HZ_KEY_RIGHT_CONTROL) || Input::IsKeyPressed (HZ_KEY_LEFT_CONTROL);
+			if (!m_FocusStack.empty () && (ctrl == m_Settings_main._use_ctrl_for_suggestion_nav)) {
 				if (e.GetKeyCode () == HZ_KEY_UP)
 					m_TextEntities[m_FocusStack.back ()].OnEvent ('U');
 				else if (e.GetKeyCode () == HZ_KEY_DOWN)
@@ -167,8 +168,9 @@ void Manager_Layer::OnImGuiRender ()
 
 				ImGui::EndMenu ();
 			}
+
 			ImGuiMainMenuBarItems ();
-			if (m_SignalHint != NULL) { // little overlay {unlinked for now}
+			if (m_SignalHint != nullptr) { // little overlay {unlinked for now}
 				ImGui::SameLine ();
 				ImGui::SetCursorPosX (width - (ImGui::GetFontSize ()*strlen (m_SignalHint)));
 				ImGui::PushStyleVar (ImGuiStyleVar_Alpha, m_SignalHintPersistsMoreFor / m_Settings_main._signal_hint_max_persist_durn);
@@ -192,25 +194,60 @@ void Manager_Layer::OnImGuiRender ()
 void Manager_Layer::OnAttach ()
 {
 	// File History & other checks load
+
+	Application::Get().GetWindow().SetOpacity (m_Settings_main._window_opacity);
 }
 void Manager_Layer::OnDetach ()
 {
 	// File History & other checks save
 }
+void ImGuiRenderLoadProgress (SymSpell_Dictionary *ptr, ImVec2 posn)
+{
+	if (ptr->progress.for_src != nullptr) {
+		ImGui::SetNextWindowPos (posn);
+		ImGui::PushStyleVar (ImGuiStyleVar_WindowRounding, 12);
+		ImGui::PushStyleVar (ImGuiStyleVar_Alpha, 0.8f);
+		ImGui::Begin ("Progress-Info", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize);
+		ImGui::TextDisabled ("(?)");
+		if (ImGui::IsItemHovered ()) {
+			ImGui::BeginTooltip ();
+			ImGui::PushTextWrapPos (ImGui::GetFontSize () * 35.0f);
+			ImGui::Text ("Load Progress of: %s %f %", ptr->progress.for_src, ptr->progress.percent ());
+			ImGui::PopTextWrapPos ();
+			ImGui::EndTooltip ();
+		}
+		ImGui::PopStyleVar (2);
+		ImGui::End ();
+	}
+}
 void Manager_Layer::ImGuiRenderDockables ()
 {
+	ImVec2 Tip_Posn;
+	Text_Entity *focused = nullptr;
 	for (uint32_t i : m_FocusStack) { // focused one at last
 		ImGui::SetNextWindowDockID (m_DockspaceID, (i == m_FocusStack.front ()) ? ImGuiCond_Always : ImGuiCond_Once);
 		
 		ImGui::PushID (i);
 		bool isOpen = true;
 		ImGui::Begin (ImGuiLayer::UniqueName (m_TextEntities[i].FileName ()), &isOpen); // ImGuiWindowFlags_NoBringToFrontOnFocus can invite lots of problems
-
+		if (ImGui::IsWindowFocused ())
+			focused = &m_TextEntities[i];
+		if (i == m_FocusStack.back ()) {
+			Tip_Posn = ImGui::GetCursorScreenPos ();
+			Tip_Posn.x += 10;
+			Tip_Posn.y += 10;
+		}
 		m_TextEntities[i].OnImGuiRender ();
 
  		ImGui::End ();
 		ImGui::PopID ();
 		if (!isOpen) CloseTextEntity (&m_TextEntities[i]);
+	}
+	if (!m_FocusStack.empty ()) {
+		if (!Manager_Layer::IsFocused (focused) && focused != nullptr)
+			Manager_Layer::ChangeFocusTo (focused);
+
+		ImGuiRenderLoadProgress (m_TextEntities[m_FocusStack.back ()].MyDictionary (), Tip_Posn);
 	}
 	SettingsImGuiRender ();
 }
@@ -277,6 +314,9 @@ void Manager_Layer::SettingsImGuiRender ()
 		const bool applied = _applied;
 		if (ImGui::BeginTabBar ("Sections")) {
 			if (ImGui::BeginTabItem ("Core")) {
+
+				if (ImGui::SliderFloat ("Window Opacity", &m_Settings_temp._window_opacity, 0.6f, 1.0f))
+					Application::Get ().GetWindow ().SetOpacity (m_Settings_temp._window_opacity), m_SettingsChanged = true;
 
 				m_SettingsChanged |= ImGui::Checkbox ("Unified Dictionary(if unchecked uses seperate dictionary for Every instance)", &m_Settings_temp._unified_dictionary);
 				m_SettingsChanged |= ImGui::Checkbox ("Use Ctrl + Up/Dn instead of just Up/Dn for suggestions navigation", &m_Settings_temp._use_ctrl_for_suggestion_nav);
@@ -425,6 +465,7 @@ void Manager_Layer::TrySaveSettings()
 		//if (m_Settings_main._signal_hint_max_persist_durn != m_Settings_temp._signal_hint_max_persist_durn) {
 			m_Settings_main._signal_hint_max_persist_durn  = m_Settings_temp._signal_hint_max_persist_durn;
 		//}
+			m_Settings_main._window_opacity = m_Settings_temp._window_opacity;
 	}
 }
 void Manager_Layer::DiscardSettings ()
@@ -436,6 +477,9 @@ void Manager_Layer::DiscardSettings ()
 	m_Settings_temp._minWord_length_to_invoke_lookup = m_Settings_main._minWord_length_to_invoke_lookup;
 	m_Settings_temp._signal_hint_max_persist_durn = m_Settings_main._signal_hint_max_persist_durn;
 	m_Settings_temp._use_ctrl_for_suggestion_nav = m_Settings_main._use_ctrl_for_suggestion_nav;
+
+	m_Settings_temp._window_opacity = m_Settings_main._window_opacity;
+	Application::Get ().GetWindow ().SetOpacity (m_Settings_main._window_opacity);
 
 	m_Settings_temp.AllowedExtensions.clear ();
 	for (std::string &str : m_Settings_main.AllowedExtensions) {
@@ -453,7 +497,7 @@ void Manager_Layer::ChangeFocusTo (Text_Entity *ptr)
 	MY_ASSERT (focus <= s_Singleton->m_FocusStack.size ());// don't worry it'll wrap around
 
 	for (uint32_t i = s_Singleton->m_FocusStack.size (); i > 0; i--)
-		if ((i - 1) == focus) {
+		if (s_Singleton->m_FocusStack[i - 1] == focus) {
 			s_Singleton->m_FocusStack.erase (s_Singleton->m_FocusStack.begin () + (i - 1));
 			break;
 		}
@@ -637,10 +681,15 @@ void Manager_Layer::ExtendDictionaryOf(SymSpell_Dictionary& handle, std::string 
 		[](SymSpell_Dictionary *dictionary, std::string source) {
 
 			dictionary->Sources.push_back (std::move (source));
-
-			if (!dictionary->symspell.LoadDictionary (dictionary->Sources.back ().c_str (), 0, 1, XL (' ')))
+			uint32_t i = dictionary->Sources.back ().size ()-1;
+			while (dictionary->Sources.back ()[i] != '\\' && i > 0)
+				i--;
+			MY_ASSERT (dictionary->Sources.back ()[i] == '\\');
+			dictionary->progress.for_src = &dictionary->Sources.back ()[i+1];
+			if (!dictionary->symspell.LoadDictionaryWithPB (dictionary->Sources.back ().c_str (), 0, 1, XL (' '), &dictionary->progress.val, &dictionary->progress.max, &dictionary->progress.offset_min, &dictionary->progress.offset_max))
 				dictionary->Sources.pop_back ();
 			dictionary->Lock = false; // release lock
+			dictionary->progress.for_src = nullptr;
 			
 		}, &handle, std::move (from_FilePath));
 	dict_addn.detach ();

@@ -21,11 +21,27 @@ static const int symspell_Max_Edit_Distance = 3, symspell_Prefix_length = 4;
 #define MY_ASSERT(x)  ;
 #endif // _DEBUG
 
+
 struct SymSpell_Dictionary
 {
 	bool Lock = false;
-	SymSpell symspell = SymSpell (1, symspell_Max_Edit_Distance, symspell_Prefix_length);
+	
+	struct
+	{
+		uint32_t val = 0;
+		uint32_t max = 0;
+		float offset_min = 0.0f;
+		float offset_max = 0.0f;
+		const char *for_src;
+		float percent ()
+		{
+			return (offset_min + (double (val)/max)*(offset_max - offset_min))*100;
+		}
+	} progress;
+	
 	std::vector<std::string> Sources = std::vector<std::string> ();
+	SymSpell symspell = SymSpell (1, symspell_Max_Edit_Distance, symspell_Prefix_length);
+	
 	bool IsSourceExist (std::string &src)
 	{
 		for (std::string &val: Sources) {

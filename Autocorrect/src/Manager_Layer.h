@@ -55,20 +55,12 @@ private: // Resource
 		int _minWord_length_to_invoke_lookup = 3;
 		
 		float _signal_hint_max_persist_durn = 4.0f; // duration in seconds
+		float _window_opacity = 0.9f; // duration in seconds
 
 		std::vector<std::string> AllowedExtensions;
 	};
 	_Settings m_Settings_main, m_Settings_temp;
 
-	struct DictionaryExtnProgress
-	{
-		uint32_t val;
-		uint32_t max;
-		float offset_min;
-		float offset_max;
-
-	};
-	std::list<DictionaryExtnProgress> m_ProgressCapture;
 private:
 	void ImGuiRenderDockables ();
 	void ImGuiMainMenuBarItems ();

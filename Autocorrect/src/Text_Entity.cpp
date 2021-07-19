@@ -97,12 +97,12 @@ int Text_Entity::text_input_callback (ImGuiInputTextCallbackData *data)
 		txt_entity.m_TargetWord = std::string_view (&data->Buf[replace_At], word.size ());
 
 		txt_entity.m_FinalSuggestions.clear ();
-		data->CursorPos = replace_At + word.size ();
+		data->CursorPos = replace_At + word.size () + 1;
 
 		txt_entity.m_SelectSuggestionIDX = 0;
 	}
 	
-	uint32_t cursor_posn = MAX (data->CursorPos - 1, 1);
+	uint32_t cursor_posn = data->CursorPos;
 	bool check = txt_entity.m_TargetWord.empty ();
 	if (!check) {
 		check = ((cursor_posn - uint32_t (&txt_entity.m_TargetWord[0] - &data->Buf[0])) > (txt_entity.m_TargetWord.size () - 1));
@@ -113,7 +113,7 @@ int Text_Entity::text_input_callback (ImGuiInputTextCallbackData *data)
 			uint8_t right = 0;
 			while (data->Buf[cursor_posn - left] != ' ' && data->Buf[cursor_posn - left] != '\n') {
 				left++;
-				if ((cursor_posn - left) == 0) { left++; break; }
+				if (cursor_posn < left) { left++; break; }
 			}
 			while (data->Buf[cursor_posn + right] != ' ' && data->Buf[cursor_posn + right] != '\0' && data->Buf[cursor_posn + right] != '\n' && data->Buf[cursor_posn + right] != '\r')
 				right++;
@@ -125,7 +125,7 @@ int Text_Entity::text_input_callback (ImGuiInputTextCallbackData *data)
 				if (size >= Manager_Layer::Get ()->MinimumWordLengthToInvokeLookup ())
 					txt_entity.m_RestartLookup = true;// , LOG_TRACE ("Restart Lookup");
 				else
-					txt_entity.m_FinalSuggestions.clear ();
+					txt_entity.m_FinalSuggestions.clear (), txt_entity.m_SelectSuggestionIDX = 0;
 			}
 		} else
 			txt_entity.m_TargetWord = std::string_view (&data->Buf[cursor_posn + 1], 1), txt_entity.m_FinalSuggestions.clear ();
@@ -149,17 +149,13 @@ void Text_Entity::OnUpdate ()
 }
 void Text_Entity::OnImGuiRender ()
 {
-	if (ImGui::IsWindowFocused () && !Manager_Layer::IsFocused(this)) {
-		Manager_Layer::ChangeFocusTo (this);
-	}
-
 	if (m_ResetKeyboardFocus)
 		ImGui::SetKeyboardFocusHere (), m_ResetKeyboardFocus = false;
 	Text_Entity::s_IsAnyTextInputFocused = false;
 	int Key_Up = ImGui::GetIO ().KeyMap[ImGuiKey_UpArrow];
 	int Key_Dn = ImGui::GetIO ().KeyMap[ImGuiKey_DownArrow];
 	if (Manager_Layer::Get()->SuggestionNavWithCtrl () ? ImGui::GetIO ().KeyCtrl : !ImGui::GetIO ().KeyCtrl)
-		ImGui::GetIO ().KeyMap[ImGuiKey_UpArrow] = (m_SuggestionsRTS->size () > 1 && m_SelectSuggestionIDX != -1 ? -1 : Key_Up), ImGui::GetIO ().KeyMap[ImGuiKey_DownArrow] = (m_SuggestionsRTS->size () > 1 ? -1 : Key_Dn);
+		ImGui::GetIO ().KeyMap[ImGuiKey_UpArrow] = (m_SuggestionsRTS->size () > 1 && m_SelectSuggestionIDX != 0 ? -1 : Key_Up), ImGui::GetIO ().KeyMap[ImGuiKey_DownArrow] = (m_SuggestionsRTS->size () > 1 ? -1 : Key_Dn);
 	ImGui::InputTextMultiline ("TextBox", &m_Buffer[0], m_Buffer.capacity () + 1, ImVec2 (-1, -1), ImGuiInputTextFlags_CallbackAlways | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_CallbackCompletion, Text_Entity::text_input_callback, this);
 	ImGui::GetIO ().KeyMap[ImGuiKey_UpArrow] = Key_Up;
 	ImGui::GetIO ().KeyMap[ImGuiKey_DownArrow] = Key_Dn;
@@ -176,25 +172,32 @@ void Text_Entity::OnImGuiRender ()
 		suggestionsDrawPosn.y += 15;
 		ImGui::SetNextWindowPos (suggestionsDrawPosn);
 		ImGui::Begin ("Suggestions", NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoNavInputs | ImGuiWindowFlags_AlwaysAutoResize);
-		for (uint32_t i = 0; i < m_SuggestionsRTS->size (); i++) {
+		for (uint32_t i = 0; i < MIN(m_SuggestionsRTS->size (), 10); i++) {
 			SuggestItem word = m_SuggestionsRTS->at (i);
-			bool dummy = i == m_SelectSuggestionIDX;
+			bool dummy = i == (m_SelectSuggestionIDX - 1);
 			if (ImGui::MenuItem (word.term.c_str (), NULL, &dummy))
-				m_SelectSuggestionIDX = i, m_ResetKeyboardFocus = true, m_SelectSuggestion = true;
-
-			if (i > 10) break; // 1st 10 suggestions
+				m_SelectSuggestionIDX = i + 1, m_ResetKeyboardFocus = true, m_SelectSuggestion = true;
 		}
 		ImGui::End ();
 	}
+}
+
+void Text_Entity::StateReset ()
+{
+	m_SelectSuggestionIDX = 0;
+	m_RestartLookup = false;
+	m_ResetKeyboardFocus = false;
 }
 void Text_Entity::OnEvent (char event)
 {
 	switch (event) {
 		case 'U':
-			m_SelectSuggestionIDX = MAX (-1, m_SelectSuggestionIDX - 1); break;
+			m_SelectSuggestionIDX = m_SelectSuggestionIDX != 0 ? m_SelectSuggestionIDX - 1 : 0; 
+			break;
 		case 'D':
 			if (m_SuggestionsRTS != nullptr)
-				m_SelectSuggestionIDX = MIN (m_SuggestionsRTS->size () - 1, m_SelectSuggestionIDX + 1); break;
+				m_SelectSuggestionIDX = MIN (m_SuggestionsRTS->size () - 1, m_SelectSuggestionIDX + 1); 
+			break;
 		case 'S':
 			SaveFile ();
 			break;

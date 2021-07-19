@@ -14,7 +14,7 @@ class MainApp : public Application
 {
 public:
 	MainApp(int argc, char *argv[], char *envv[])
-		: Application("Symspell", 600, 400, 0.8f)
+		: Application("Symspell", 600, 400)
 	{
 		//// Using Model-View-Controller Design_Pattern
 		PushLayer (Manager_Layer::Create(argc, argv, envv));
