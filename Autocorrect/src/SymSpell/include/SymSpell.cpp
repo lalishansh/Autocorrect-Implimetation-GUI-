@@ -387,30 +387,30 @@ bool SymSpell::LoadDictionaryWithPB (xifstream &corpusStream, int termIndex, int
 		corpusStream.seekg (0, std::ios::beg);
 	}
 	*progress_contribution_min = 0.04f, *progress_contribution_max = 0.92f, *max_progress_amount = tmp;}
-	{ // 87 % region
-		SuggestionStage staging (16384);
-		xstring line;
+	//// 87 % region
+	SuggestionStage staging (16384);
+	xstring line;
 
-		//process a single line at a time only for memory efficiency
-		while (getline (corpusStream, line)) {
-			*progress_amount = corpusStream.tellg () != -1 ? corpusStream.tellg () : *progress_amount;
+	//process a single line at a time only for memory efficiency
+	while (getline (corpusStream, line)) {
+		*progress_amount = corpusStream.tellg () != -1 ? corpusStream.tellg () : *progress_amount;
 
-			vector<xstring> lineParts;
-			xstringstream ss (line);
-			xstring token;
-			//start = clock();
-			while (getline (ss, token, separatorChars))
-				lineParts.push_back (token);
+		vector<xstring> lineParts;
+		xstringstream ss (line);
+		xstring token;
+		//start = clock();
+		while (getline (ss, token, separatorChars))
+			lineParts.push_back (token);
 
-			if (lineParts.size () >= 2) {
-				int64_t count = stoll (lineParts[countIndex]);
+		if (lineParts.size () >= 2) {
+			int64_t count = stoll (lineParts[countIndex]);
 
-				CreateDictionaryEntry (lineParts[termIndex], count, &staging);
-			} else {
-				CreateDictionaryEntry (line, 1, &staging);
-			}
+			CreateDictionaryEntry (lineParts[termIndex], count, &staging);
+		} else {
+			CreateDictionaryEntry (line, 1, &staging);
 		}
 	}
+	////
 	*progress_contribution_min = 0.93f, *progress_contribution_max = 1.0f, *progress_amount = 0, *max_progress_amount = 1;
 	{// 8 % region
 		if (this->deletes == NULL)

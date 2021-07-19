@@ -1,34 +1,35 @@
 ﻿#pragma once
+#include <GLCore.h>
+
 #include "Core.h"
-#include "GLCore.h"
 
 class Text_Entity;
+typedef unsigned int ImGuiID;
 class Manager_Layer : public GLCore::Layer
 {
 private:
 	static Manager_Layer *s_Singleton;
 	Manager_Layer (const int argc, char *argv[], char *envv[]);
 public: // constructor(s), destructor(s) and mandatory stuff
-	Get ()
+	static Manager_Layer* Get ()
 	{
-#ifdef _DEBUG
-		if (s_Singleton == nullptr) __debugbreak ();
-#endif // _DEBUG
+		MY_ASSERT (s_Singleton != nullptr);
 		return s_Singleton;
 	}
-	Manager_Layer *Create (const int argc, char *argv[], char *envv[]) {
+	static Manager_Layer *Create (const int argc, char *argv[], char *envv[]) {
 		if (s_Singleton == nullptr)
 			s_Singleton = new Manager_Layer (argc, argv, envv);
 		return s_Singleton;
 	};
-	~Manager_Layer () { if (s_Singleton) { s_Singleton->OnDelete (); delete s_Singleton; } s_Singleton = nullptr; };
-	void OnDelete ();
+	~Manager_Layer () {};
 	virtual void OnEvent (GLCore::Event &event) override;
 	virtual void OnUpdate (GLCore::Timestep ts) override;
 	virtual void OnImGuiRender() override;
 	virtual void OnAttach() override;
 	virtual void OnDetach() override;
 private: // Resource
+	ImGuiID m_DockspaceID;
+
 	char *m_SignalHint = "";
 	float m_SignalHintPersistsMoreFor = -1.0f; // in seconds, Max persist duration in settings
 
@@ -41,7 +42,8 @@ private: // Resource
 	// vector.back() is on top
 	std::vector<uint16_t> m_FocusStack;
 
-
+	bool m_SettingsWindowOpen = false;
+	bool m_SettingsChanged = false;
 	struct _Settings
 	{
 		bool _unified_dictionary      = true;
@@ -50,51 +52,65 @@ private: // Resource
 		bool _autosave_enabled        = false;
 		float _autosave_every         = 60.0f; // in seconds
 		
-		uint8_t _minWord_length_to_invoke_lookup = 3;
+		int _minWord_length_to_invoke_lookup = 3;
 		
 		float _signal_hint_max_persist_durn = 4.0f; // duration in seconds
 
 		std::vector<std::string> AllowedExtensions;
 	};
-	bool m_SettingsChanged = false;
 	_Settings m_Settings_main, m_Settings_temp;
+
+	struct DictionaryExtnProgress
+	{
+		uint32_t val;
+		uint32_t max;
+		float offset_min;
+		float offset_max;
+
+	};
+	std::list<DictionaryExtnProgress> m_ProgressCapture;
 private:
 	void ImGuiRenderDockables ();
 	void ImGuiMainMenuBarItems ();
 	void SettingsImGuiRender ();
 
-	bool TrySaveSettings ();
+	void TrySaveSettings ();
 	void DiscardSettings ();
-
-	// guaranteed that state is changing, returns new state, 
-	bool ChangeUnifiedDictionaryState (bool from, bool& to);
 public:
-	bool IsFocused (Text_Entity *ptr);
-	void ChangeFocusTo (Text_Entity *ptr);
+	// Getters
+	std::list<SymSpell_Dictionary> &Dictionaries () { return m_Dictionaries; }
+	std::queue<Signal> &SignalQueue () { return m_Signals; }
+	std::queue<QueryBox> &PromptQueue () { return m_QueryBoxes; }
+	const bool SuggestionNavWithCtrl () { return m_Settings_main._use_ctrl_for_suggestion_nav; };
+	const uint8_t MinimumWordLengthToInvokeLookup () { return uint8_t(m_Settings_main._minWord_length_to_invoke_lookup); };
+
+	// Helpers
+	static bool IsFocused (Text_Entity *ptr);
+	static void ChangeFocusTo (Text_Entity *ptr);
+	
 	void CloseTextEntity (Text_Entity *ptr);
 
 	void SetSignalHint (char *hint); // Doesn't takes owner ship of data, reccommended to only paas char*, that are going to last at-least max-persist amount
 
-	template<typename CLASS> // For the sake of coherence
-	void RaiseQuery (std::string message, std::vector<std::string, bool> options, void *extra_data, CLASS *target, void(*CLASS::static_callbck)(void *, void *, uint8_t *))
+	void SignalInvalidator (void *signals_with_data);
+
+	void RaiseQuery (std::string message, std::vector<std::pair<std::string, bool>> options, void *data1, void *data2, void(*static_callbck)(void *, void *, uint8_t *, bool));
+	static void DummySignalCallback (void *this_obj, void *a, uint8_t *b, bool is_valid_signal)
 	{
-		// QueryBox (std::queue<Signal> *signalQueue, std::string message, std::vector<std::pair<std::string, bool>> optionsWithDefaultState, void* data_ex, void* target_obj, void(*callbackFunc)(void *, void *, void *))
-		m_QueryBoxes.emplace (&m_Signals, std::move (message), std::move (options), extra_data, target, CLASS::static_callbck);// static_callbck);
-	}
-	static void DummySignalConsume (void *this_obj, void *a, uint8_t *b)
-	{
-#ifdef _DEBUG
-		if(a) __debugbreak ();
-		if(b) __debugbreak ();
-#endif // _DEBUG
-		if(b) delete[] b;
+		MY_ASSERT (a == nullptr); // pass nullptr, as dummy cannot determine the type of [*a] like specialized functions, i.e memory leak
+		MY_ASSERT (b);
+		delete[] b;
 	}
 
-	void FileProcessCallback (void *, void *, uint8_t *);
+	// Make it lambda since it will only be used when files are drag and dropped
+	// takes ownership of only ptr <1> & <2>, not <0>
+	static void file_process_callback (void *, void *, uint8_t *, bool is_valid_signal);
 
-	// returns false if file cannot be loaded.
-	bool LoadTextFileToEntity(char *filePath);
+	// [MT inside] takes ownership of filepath, returns false if file cannot be loaded.
+	bool LoadTextFileToEntity(std::string filePath);
+	// [MT inside] takes ownership of filepath, returns false if handle is busy.
+	void ExtendDictionaryOf(SymSpell_Dictionary& handle, std::string from_FilePath);
 	
-	// returns false if handle is busy.
-	bool ExtendDictionaryADictionary(SymSpell_Dictionary& handle, char *from_FilePath);
+	static void DestroyDictionary (void *_dict_location, void *dummy, uint8_t *options_data, bool is_valid_signal);
+	static void LazyDestroyDictionary (void *_dict_location, void *dummy1, uint8_t *dummy2, bool signal_is_valid);
 };

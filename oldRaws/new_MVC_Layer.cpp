@@ -512,9 +512,7 @@ void new_MVC_Layer::App_Settings ()
 
 void new_MVC_Layer::RaiseQuery(const char *message, std::vector<std::string_view> query_options, void *target_object, void(*callback_func)(void *, bool, uint32_t, const bool *), const bool* default_state)
 {
-#ifdef _DEBUG
-	if (callback_func == nullptr) { LOG_ERROR ("Query Callback Function is NULLPTR"); __debugbreak (); }
-#endif // _DEBUG
+	MY_ASSERT (callback_func != nullptr) //{ LOG_ERROR ("Query Callback Function is NULLPTR"); }
 	m_UserQueries.push (UserQuery::Create (this, callback_func, message, std::move(query_options), default_state));
 }
 // Query Functions

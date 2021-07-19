@@ -13,8 +13,7 @@ static const int symspell_Max_Edit_Distance = 3, symspell_Prefix_length = 4;
 class new_MVC_Layer;
 bool ChangeUnifiedDictionaryState (const bool state, new_MVC_Layer &layer);
 
-struct SymSpell_Dictionary
-{
+struct SymSpell_Dictionary{
 	bool Lock = false;
 	SymSpell symspell = SymSpell(1, symspell_Max_Edit_Distance, symspell_Prefix_length);
 	std::vector<std::string> Sources = std::vector<std::string>();
@@ -27,14 +26,12 @@ struct UserQuery
 public:
 	static UserQuery Create (void *target_object_ptr, void(*static_callback_fn)(void*,bool,uint32_t,const bool*), const char *message_c_str, std::vector<std::string_view> query_options, const bool* start_states = nullptr)
 	{
-#ifdef _DEBUG
-		if (message_c_str == nullptr) { LOG_ERROR ("message is NULL"); __debugbreak (); }
-#endif // _DEBUG
+		MY_ASSERT (message_c_str != nullptr) // LOG_ERROR ("message is NULL");
 		bool *bools = nullptr;
 		if (query_options.size () > 0) bools = new bool[query_options.size ()];
 		if (start_states)
 			memcpy_s (bools, query_options.size (), start_states, query_options.size ());
-		return UserQuery(std::string_view(message_c_str), query_options, bools, static_callback_fn, target_object_ptr);
+		return UserQuery(message_c_str, query_options, bools, static_callback_fn, target_object_ptr);
 	}
 	
 	void Callback (bool yes_no) { if(_callback_fn) _callback_fn(_callback_target, yes_no, _query_options.size (), _query_options_states); };
@@ -42,14 +39,12 @@ public:
 	inline const char*    Message()     { return _message.data (); }	
 	inline const uint32_t OptionSize () { return _query_options.size (); }
 	
-	std::pair<const char *, bool*> OptionAt (uint32_t posn)
+	std::pair<const char *, bool *> OptionAt (uint32_t posn)
 	{
-#ifdef _DEBUG
-		if (posn >= _query_options.size ()) { LOG_ERROR ("Accessing Out Of Bound Elements"); __debugbreak (); }
-		if (_query_options.size () > 0) if(_query_options_states == nullptr) { LOG_ERROR ("Query Not Alive"); __debugbreak (); }
-		if (&_query_options_states[posn] != (_query_options_states + posn)) { LOG_ERROR ("Posn Addn to ptr is not good"); __debugbreak (); }
+		MY_ASSERT (posn < _query_options.size ()); // LOG_ERROR ("Accessing Out Of Bound Elements");
+		MY_ASSERT (_query_options.size () > 0 && _query_options_states == nullptr);
+		MY_ASSERT (&_query_options_states[posn] != (_query_options_states + posn)),// LOG_ERROR ("Posn Addn to ptr is not good");
 
-#endif // _DEBUG
 		return{ _query_options[posn].data () , _query_options_states + posn };
 	}
 
@@ -61,11 +56,11 @@ public:
 	~UserQuery () {} //if (_query_options_states) delete[] _query_options_states; _query_options_states = nullptr;	}
 private :
 	UserQuery () = default;
-	UserQuery (std::string_view message, std::vector<std::string_view> &query_options, bool *query_options_states, void(*callback_fn)(void *, bool, uint32_t, const bool *), void *callback_target)
+	UserQuery (const char* message, std::vector<std::string_view> &query_options, bool *query_options_states, void(*callback_fn)(void *, bool, uint32_t, const bool *), void *callback_target)
 		:_message (message), _query_options (std::move(query_options)), _query_options_states (std::move(query_options_states)), _callback_fn (callback_fn), _callback_target (callback_target)
 	{}
 
-	const std::string_view _message;
+	const char* _message;
 	std::vector<std::string_view> _query_options;
 	bool *_query_options_states; // keep thil nullptr
 
