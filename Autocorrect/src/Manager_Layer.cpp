@@ -6,6 +6,7 @@
 
 #include "Manager_Layer.h"
 #include "Text_Entity.h"
+#include "themeSetter.h"
 
 //TODO : GLCore::Utils::OpenFile needs to contain all known file extensions.
 using namespace GLCore;
@@ -20,7 +21,7 @@ Manager_Layer::Manager_Layer (const int argc, char *argv[], char *envv[])
 			if (argc > 2)
 				newFilePath = CreateNewFile (std::string (argv[2]));
 			else 
-				newFilePath = CreateNewFile ();
+				newFilePath = CreateNewFile (".\\");
 
 		} else if (strcmp (argv[1], "open") == 0) {
 			if (argc > 2)
@@ -398,6 +399,9 @@ void Manager_Layer::SettingsImGuiRender ()
 				
 				if (ImGui::SliderFloat ("Window Opacity", &m_Settings_temp._window_opacity, 0.6f, 1.0f))
 					Application::Get ().GetWindow ().SetOpacity (m_Settings_temp._window_opacity), m_SettingsChanged = true;
+
+
+				m_SettingsChanged |= ThemeSelector ("MyTheme##Selector", m_Settings_temp._window_opacity);
 				
 				ImGui::EndTabItem ();
 			}

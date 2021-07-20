@@ -7,51 +7,36 @@
 #define MAX(x,y) (x > y ? x :  y)
 
 
-/// <summary>Maximum edit distance for dictionary precalculation.</summary>
 int SymSpell::MaxDictionaryEditDistance()
 {
 	return this->maxDictionaryEditDistance; 
 }
 
-/// <summary>Length of prefix, from which deletes are generated.</summary>
 int SymSpell::PrefixLength()
 {
 	return this->prefixLength;
 }
 
-/// <summary>Length of longest word in the dictionary.</summary>
 int SymSpell::MaxLength()
 {
 	return this->maxDictionaryWordLength;
 }
 
-/// <summary>Count threshold for a word to be considered a valid word for spelling correction.</summary>
 long SymSpell::CountThreshold()
 {
 	return this->countThreshold;
 }
 
-/// <summary>Number of unique words in the dictionary.</summary>
 int SymSpell::WordCount()
 {
 	return this->words.size();
 }
 
-/// <summary>Number of word prefixes and intermediate word deletes encoded in the dictionary.</summary>
 int SymSpell::EntryCount()
 {
 	return this->deletes->size();
 }
 
-/// <summary>Create a new instanc of SymSpell.</summary>
-/// <remarks>Specifying ann accurate initialCapacity is not essential, 
-/// but it can help speed up processing by alleviating the need for 
-/// data restructuring as the size grows.</remarks>
-/// <param name="initialCapacity">The expected number of words in dictionary.</param>
-/// <param name="maxDictionaryEditDistance">Maximum edit distance for doing lookups.</param>
-/// <param name="prefixLength">The length of word prefixes used for spell checking..</param>
-/// <param name="countThreshold">The minimum frequency count for dictionary words to be considered correct spellings.</param>
-/// <param name="compactLevel">Degree of favoring lower memory use over speed (0=fastest,most memory, 16=slowest,least memory).</param>
 SymSpell::SymSpell(int initialCapacity, int maxDictionaryEditDistance
 	, int prefixLength, int countThreshold, unsigned char compactLevel)
 {
@@ -72,16 +57,6 @@ SymSpell::SymSpell(int initialCapacity, int maxDictionaryEditDistance
 	this->words = Dictionary<xstring, int64_t>(initialCapacity);
 }
 
-/// <summary>Create/Update an entry in the dictionary.</summary>
-/// <remarks>For every word there are deletes with an edit distance of 1..maxEditDistance created and added to the
-/// dictionary. Every delete entry has a suggestions list, which points to the original term(s) it was created from.
-/// The dictionary may be dynamically updated (word frequency and new words) at any time by calling CreateDictionaryEntry</remarks>
-/// <param name="key">The word to add to dictionary.</param>
-/// <param name="count">The frequency count for word.</param>
-/// <param name="staging">Optional staging object to speed up adding many entries by staging them to a temporary structure.</param>
-/// <returns>True if the word was added as a new correctly spelled word,
-/// or false if the word is added as a below threshold word, or updates an
-/// existing correctly spelled word.</returns>
 bool SymSpell::CreateDictionaryEntry(xstring key, int64_t count, SuggestionStage* staging)
 {
 	
@@ -91,24 +66,19 @@ bool SymSpell::CreateDictionaryEntry(xstring key, int64_t count, SuggestionStage
 		count = 0;
 	}
 	int countPrevious = -1;
-	// look first in below threshold words, update count, and allow promotion to correct spelling word if count reaches threshold
-	// threshold must be >1 for there to be the possibility of low threshold words
 	auto belowThresholdWordsFinded = belowThresholdWords.find(key);
 	auto wordsFinded = words.find(key);
 	if (countThreshold > 1 && belowThresholdWordsFinded != belowThresholdWords.end())
 	{
 		countPrevious = belowThresholdWordsFinded->second;
 
-		// calculate new count for below threshold word
 		count = (MAXINT - countPrevious > count) ? countPrevious + count : MAXINT;
-		// has reached threshold - remove from below threshold collection (it will be added to correct words below)
 		if (count >= countThreshold)
 		{
 			belowThresholdWords.erase(key);
 		}
 		else
 		{
-			//belowThresholdWords[key] = count;
 			belowThresholdWords.insert(pair<xstring, int64_t>(key, count));
 			return false;
 		}
@@ -116,9 +86,7 @@ bool SymSpell::CreateDictionaryEntry(xstring key, int64_t count, SuggestionStage
 	else if (wordsFinded != words.end())
 	{
 		countPrevious = wordsFinded->second;
-		// just update count if it's an already added above threshold word
 		count = (MAXINT - countPrevious > count) ? countPrevious + count : MAXINT;
-		//words[key] = count;
 		words.insert(pair<xstring, int64_t>(key, count));
 		return false;
 	}
@@ -134,26 +102,15 @@ bool SymSpell::CreateDictionaryEntry(xstring key, int64_t count, SuggestionStage
 	//words[key] = count;
 	words.insert(pair<xstring, int64_t>(key, count));
 	
-	//edits/suggestions are created only once, no matter how often word occurs
-	//edits/suggestions are created only as soon as the word occurs in the corpus, 
-	//even if the same term existed before in the dictionary as an edit from another word
 	if (key.size() > this->maxDictionaryWordLength) this->maxDictionaryWordLength = key.size();
 	
-	//create deletes
 	HashSet<xstring> edits = EditsPrefix(key);
-	// if not staging suggestions, put directly into main data structure
 	if (staging != NULL)
 	{
-		/*ofstream outfile;
-		outfile.open("log.txt", ios::app);
-		outfile << words.size() << " " << key <<edits.size();*/
 		for (auto it = edits.begin(); it != edits.end(); ++it)
 		{
 			staging->Add(GetstringHash(*it), key);
-			//outfile << "-" << *it;
 		}
-		/*outfile << endl;
-		outfile.close();*/
 	}
 	else
 	{
@@ -164,7 +121,6 @@ bool SymSpell::CreateDictionaryEntry(xstring key, int64_t count, SuggestionStage
 			auto deletesFinded = deletes->find(deleteHash);
 			std::vector<xstring> suggestions;
 			if(deletesFinded != deletes->end())
-			//if (deletes.TryGetValue(deleteHash, out string[] suggestions))
 			{
 				suggestions = deletesFinded->second;
 				std::vector<xstring> newSuggestions(suggestions.size() + 1);
