@@ -63,7 +63,7 @@ public:
 				lineNum++, columnNum = 0;
 			else
 				columnNum++;
-			LOG_INFO ("cursor In Buff: {0}, {1}; {2} ", lineNum, columnNum, size);
+			//LOG_INFO ("cursor In Buff: {0}, {1}; {2} ", lineNum, columnNum, size);
 		}
 
 		RecalcLastWord ();
@@ -118,7 +118,8 @@ ExampleLayer::~ExampleLayer()
 
 void ExampleLayer::OnAttach()
 {
-	EnableGLDebugging();
+	//EnableGLDebugging();
+	
 }
 
 void ExampleLayer::OnDetach()
@@ -243,7 +244,20 @@ void ExampleLayer::OnImGuiRender()
 				
 				ImGui::EndMenu ();
 			}
+			ImGui::SameLine ();
+			ImGui::Bullet ();
 			MenuBarItems ();
+			ImGui::SameLine ();
+			ImGui::Bullet ();
+			ImGui::SetNextItemWidth (100);
+			static int style_idx = 0;
+			if (ImGui::Combo ("Theme", &style_idx, "Dark\0Light\0Classic\0")) {
+				switch (style_idx) {
+					case 0: ImGui::StyleColorsDark (); break;
+					case 1: ImGui::StyleColorsLight (); break;
+					case 2: ImGui::StyleColorsClassic (); break;
+				}
+			}
 			ImGui::EndMenuBar ();
 		}
 
@@ -282,7 +296,7 @@ void ExampleLayer::ImGuiRenderDockables ()
 			[](ImGuiInputTextCallbackData *data) -> int
 			{
 				if (data->EventFlag == ImGuiInputTextFlags_CallbackAlways) {
-					LOG_TRACE ("cursor_pos {0}", data->CursorPos);
+					//LOG_TRACE ("cursor_pos {0}", data->CursorPos);
 					ExampleLayer::s_TextBoxSelected = true;
 				}
 				if (g_SelectSuggestion)
@@ -338,7 +352,9 @@ void ExampleLayer::ImGuiRenderDockables ()
 			}
 		}
 		{
-			ImGui::SetNextWindowPos (ImVec2 (12*g_ResizeableCharBuffer.ColumnNum () + ImGui::GetWindowPos ().x + DrawingTextHere.x, 12*(g_ResizeableCharBuffer.LineNum ()+1) + ImGui::GetWindowPos ().y + DrawingTextHere.y));
+			ImVec2 suggestionsDrawPosn = ImGui::GetCurrentContext ()->PlatformImeLastPos;
+			suggestionsDrawPosn.y += 15;
+			ImGui::SetNextWindowPos (suggestionsDrawPosn);
 			if (show) {
 				ImGui::Begin ("#Suggestions", NULL, ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_AlwaysAutoResize);
 				int i = 0;
@@ -412,7 +428,7 @@ void ExampleLayer::LoadADictionary (std::string filePath)
 		g_SymSpell.LoadDictionary (filePath, 0, 1, XL (' '));
 		int end = clock ();
 		float time = (float)((end - start) / (CLOCKS_PER_SEC / 1000));
-		LOG_INFO ("Library Loaded in : {0}", time);
+		LOG_INFO ("Dictionary Loaded in : {0}", time);
 		g_LoadedDictionaryLocation.push_back (filePath);
 	}
 }
