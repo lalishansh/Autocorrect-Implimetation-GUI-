@@ -1,5 +1,5 @@
 # Autocorrect-Implimetation-GUI-
-a college project
+a college project (see TXT_editor_experimental for transition to text editor)
 ![image](https://user-images.githubusercontent.com/61790879/118241387-b3988a00-b4b9-11eb-8b53-bc7dd03a508d.png)
 
 to clone use: { *git clone --recursive https://github.com/ishanshLal-tRED/Autocorrect-Implimetation-GUI-* }
